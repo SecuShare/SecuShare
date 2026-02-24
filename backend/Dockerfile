@@ -17,7 +17,7 @@ COPY . .
 RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-linkmode external -extldflags '-static'" -o server ./cmd/server
 
 # Runtime stage
-FROM alpine:3.22
+FROM alpine:3.23
 
 # Install runtime dependencies
 RUN apk --no-cache add ca-certificates sqlite-libs su-exec
