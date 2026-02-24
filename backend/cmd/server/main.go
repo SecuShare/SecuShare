@@ -79,7 +79,7 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to initialize auth service")
 	}
 	fileSvc := service.NewFileService(fileRepo, userRepo, guestRepo, cfg.Storage.Path)
-	shareSvc := service.NewShareService(shareRepo, fileRepo, fileSvc)
+	shareSvc := service.NewShareService(shareRepo, fileRepo, fileSvc, cfg)
 
 	// Initialize admin service and wire up settings provider
 	adminSvc := service.NewAdminService(settingsRepo, userRepo)
@@ -161,6 +161,7 @@ func main() {
 	shares := api.Group("/shares")
 	shares.Post("/", jsonBodyLimit, handler.AuthMiddleware(authSvc), handler.CSRFMiddleware(), shareHandler.Create)
 	shares.Get("/:id", shareHandler.GetShare)
+	shares.Post("/:id/request-code", jsonBodyLimit, fileRateLimiter.Middleware(), shareHandler.RequestDownloadCode)
 	shares.Post("/:id/file", jsonBodyLimit, fileRateLimiter.Middleware(), shareHandler.DownloadFile)
 	shares.Delete("/:id", handler.AuthMiddleware(authSvc), handler.CSRFMiddleware(), shareHandler.Deactivate)
 
@@ -223,6 +224,9 @@ func main() {
 				if err := pendingRepo.DeleteExpired(now); err != nil {
 					logger.Error().Err(err).Msg("Failed to clean up expired pending registrations")
 				}
+				if err := shareRepo.DeleteExpiredPendingDownloadVerifications(now); err != nil {
+					logger.Error().Err(err).Msg("Failed to clean up expired pending share download verifications")
+				}
 				logger.Info().Msg("Expired data cleanup completed")
 			case <-cleanupStop:
 				return
@@ -266,6 +270,9 @@ func main() {
 	if err := app.ShutdownWithContext(ctx); err != nil {
 		logger.Error().Err(err).Msg("Error during shutdown")
 	}
+
+	// Stop share service background workers after HTTP shutdown drains requests.
+	shareSvc.Stop()
 
 	// Close database connection
 	logger.Info().Msg("Closing database connection...")

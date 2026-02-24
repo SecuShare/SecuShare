@@ -14,6 +14,8 @@ services:
       - STORAGE_PATH=/app/storage
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET environment variable is required}
       # Required in production. Optional in development.
+      - DOWNLOAD_CODE_HMAC_SECRET=${DOWNLOAD_CODE_HMAC_SECRET:-}
+      # Required in production. Optional in development.
       - OPAQUE_SERVER_SETUP=${OPAQUE_SERVER_SETUP:-}
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - ALLOW_ORIGINS=${ALLOW_ORIGINS:?ALLOW_ORIGINS environment variable is required}

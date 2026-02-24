@@ -3,8 +3,9 @@ import { encryptKeyWithPassword } from '../../services/cryptoService';
 import { useAuthStore, useFileStore } from '../../store';
 import { useToast } from '../common/Toast';
 import { api } from '../../services/api';
-import { Copy, X, Lock, Clock, Download, Trash2, Share2, CheckCircle2, Info } from 'lucide-react';
+import { Copy, X, Lock, Clock, Download, Trash2, Share2, CheckCircle2, Info, Mail } from 'lucide-react';
 import type { File as AppFile, FileShare } from '../../types';
+import { parseAllowedEmails } from '../../utils/email';
 
 interface FileSharesPanelProps {
   file: AppFile;
@@ -14,6 +15,7 @@ interface FileSharesPanelProps {
 interface ShareOptions {
   passwordEnabled: boolean;
   password: string;
+  allowedEmails: string;
   expiresIn: 'never' | '1h' | '24h' | '7d' | '30d' | 'custom';
   customExpiresAt: string;
   maxDownloads: string;
@@ -22,6 +24,7 @@ interface ShareOptions {
 const DEFAULT_SHARE_OPTIONS: ShareOptions = {
   passwordEnabled: false,
   password: '',
+  allowedEmails: '',
   expiresIn: '24h',
   customExpiresAt: '',
   maxDownloads: '',
@@ -141,6 +144,17 @@ export function FileSharesPanel({ file, onClose }: FileSharesPanelProps) {
         shareData.max_downloads = maxDl;
       }
 
+      const { emails: allowedEmails, invalid: invalidAllowedEmails } = parseAllowedEmails(shareOptions.allowedEmails);
+      if (invalidAllowedEmails.length > 0) {
+        throw new Error(`Invalid email address: ${invalidAllowedEmails[0]}`);
+      }
+      if (allowedEmails.length > 50) {
+        throw new Error('Allowed email list exceeds 50 addresses');
+      }
+      if (allowedEmails.length > 0) {
+        shareData.allowed_emails = allowedEmails;
+      }
+
       const createRes = await api.createShare(shareData);
       if (!createRes.success || !createRes.data) {
         throw new Error(createRes.error || 'Failed to create share link');
@@ -158,7 +172,7 @@ export function FileSharesPanel({ file, onClose }: FileSharesPanelProps) {
       await refreshShares();
 
       showToast('Share link created', 'success');
-      setShareOptions((prev) => ({ ...prev, password: '' }));
+      setShareOptions((prev) => ({ ...prev, password: '', allowedEmails: '' }));
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to create share link', 'error');
     } finally {
@@ -229,6 +243,24 @@ export function FileSharesPanel({ file, onClose }: FileSharesPanelProps) {
                   className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100"
                 />
               )}
+            </div>
+
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                <Mail className="w-4 h-4 text-gray-500" />
+                Allowed recipient emails (optional)
+              </label>
+              <textarea
+                value={shareOptions.allowedEmails}
+                onChange={(e) => setShareOptions((o) => ({ ...o, allowedEmails: e.target.value }))}
+                placeholder="alice@example.com, bob@example.com"
+                rows={3}
+                disabled={isCreating || !hasLocalKey}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Recipients must enter one of these emails to receive a one-time download code.
+              </p>
             </div>
 
             <div>
@@ -324,6 +356,11 @@ export function FileSharesPanel({ file, onClose }: FileSharesPanelProps) {
                               <Lock className="w-3 h-3" /> Password protected
                             </span>
                           )}
+                          {share.requires_email_verification && (
+                            <span className="flex items-center gap-1">
+                              <Mail className="w-3 h-3" /> Email verification
+                            </span>
+                          )}
                           {share.expires_at ? (
                             <span className={`flex items-center gap-1 ${isExpired ? 'text-red-500' : ''}`}>
                               <Clock className="w-3 h-3" />
@@ -339,6 +376,12 @@ export function FileSharesPanel({ file, onClose }: FileSharesPanelProps) {
                             {share.download_count}{share.max_downloads != null ? ` / ${share.max_downloads}` : ''} downloads
                           </span>
                         </div>
+
+                        {share.allowed_emails && share.allowed_emails.length > 0 && (
+                          <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded px-2 py-1">
+                            <span className="font-medium">Allowed emails:</span> {share.allowed_emails.join(', ')}
+                          </div>
+                        )}
 
                         <div className="flex items-center gap-2">
                           {url ? (
@@ -384,11 +427,19 @@ export function FileSharesPanel({ file, onClose }: FileSharesPanelProps) {
                           {share.has_password && (
                             <span className="flex items-center gap-1"><Lock className="w-3 h-3" /> Password</span>
                           )}
+                          {share.requires_email_verification && (
+                            <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> Email verification</span>
+                          )}
                           <span className="flex items-center gap-1">
                             <Download className="w-3 h-3" /> {share.download_count} downloads
                           </span>
                           <span className="text-red-400">Deactivated</span>
                         </div>
+                        {share.allowed_emails && share.allowed_emails.length > 0 && (
+                          <div className="mt-2 text-xs text-gray-500">
+                            <span className="font-medium">Allowed emails:</span> {share.allowed_emails.join(', ')}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

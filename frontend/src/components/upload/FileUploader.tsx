@@ -4,11 +4,13 @@ import { useAuthStore, useFileStore } from '../../store';
 import { useToast } from '../common/Toast';
 import { encryptFile, encryptKeyWithPassword, formatFileSize } from '../../services/cryptoService';
 import { api } from '../../services/api';
-import { Upload, Lock, FileIcon, Clock, Download, Copy, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Upload, Lock, FileIcon, Clock, Download, Copy, CheckCircle2, AlertTriangle, Mail } from 'lucide-react';
+import { parseAllowedEmails } from '../../utils/email';
 
 interface ShareOptions {
   passwordEnabled: boolean;
   password: string;
+  allowedEmails: string;
   expiresIn: 'never' | '1h' | '24h' | '7d' | '30d' | 'custom';
   customExpiresAt: string; // datetime-local value used when expiresIn === 'custom'
   maxDownloads: string;
@@ -20,12 +22,13 @@ type UploaderStep =
   | { step: 'uploading'; fileName: string; progress: number }
   | { step: 'configuring'; fileId: string; encryptionKey: string; fileName: string }
   | { step: 'sharing'; fileId: string; encryptionKey: string; fileName: string; options: ShareOptions }
-  | { step: 'done'; shareUrl: string; fileName: string; passwordEnabled: boolean }
+  | { step: 'done'; shareUrl: string; fileName: string; passwordEnabled: boolean; emailRestricted: boolean }
   | { step: 'error'; message: string };
 
 const DEFAULT_SHARE_OPTIONS: ShareOptions = {
   passwordEnabled: false,
   password: '',
+  allowedEmails: '',
   expiresIn: '24h',
   customExpiresAt: '',
   maxDownloads: '',
@@ -141,6 +144,17 @@ export function FileUploader() {
       const maxDl = parseInt(shareOptions.maxDownloads, 10);
       if (!isNaN(maxDl) && maxDl > 0) shareData.max_downloads = maxDl;
 
+      const { emails: allowedEmails, invalid: invalidAllowedEmails } = parseAllowedEmails(shareOptions.allowedEmails);
+      if (invalidAllowedEmails.length > 0) {
+        throw new Error(`Invalid email address: ${invalidAllowedEmails[0]}`);
+      }
+      if (allowedEmails.length > 50) {
+        throw new Error('Allowed email list exceeds 50 addresses');
+      }
+      if (allowedEmails.length > 0) {
+        shareData.allowed_emails = allowedEmails;
+      }
+
       const shareResponse = await api.createShare(shareData);
       if (!shareResponse.success || !shareResponse.data) {
         throw new Error(shareResponse.error || 'Failed to create share link');
@@ -156,7 +170,13 @@ export function FileUploader() {
       }
 
       setShareUrl(shareResponse.data.id, shareUrl);
-      setStep({ step: 'done', shareUrl, fileName, passwordEnabled: shareOptions.passwordEnabled && !!shareOptions.password });
+      setStep({
+        step: 'done',
+        shareUrl,
+        fileName,
+        passwordEnabled: shareOptions.passwordEnabled && !!shareOptions.password,
+        emailRestricted: allowedEmails.length > 0,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create share link';
       showToast(message, 'error');
@@ -406,6 +426,24 @@ export function FileUploader() {
             />
           </div>
 
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+              <Mail className="w-4 h-4 text-gray-500" />
+              Allowed recipient emails (optional)
+            </label>
+            <textarea
+              value={shareOptions.allowedEmails}
+              onChange={e => setShareOptions(o => ({ ...o, allowedEmails: e.target.value }))}
+              placeholder="alice@example.com, bob@example.com"
+              rows={3}
+              disabled={isSharing}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Recipients must enter one of these emails to receive a one-time download code.
+            </p>
+          </div>
+
           {/* Action buttons */}
           <div className="flex gap-3">
             <button
@@ -466,10 +504,13 @@ export function FileUploader() {
           </div>
 
           {/* Security banner */}
-          {step.passwordEnabled ? (
+          {step.passwordEnabled || step.emailRestricted ? (
             <div className="flex items-start gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600">
               <Lock className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
-              <span>Password protected. Share the password separately with recipients.</span>
+              <span>
+                {step.passwordEnabled ? 'Password protected. Share the password separately with recipients. ' : ''}
+                {step.emailRestricted ? 'Only allowlisted emails can receive a one-time download code.' : ''}
+              </span>
             </div>
           ) : (
             <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">

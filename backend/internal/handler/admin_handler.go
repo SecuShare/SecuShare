@@ -227,6 +227,11 @@ func (h *AdminHandler) TriggerCleanup(c *fiber.Ctx) error {
 	} else {
 		results["pending_registrations"] = "cleaned"
 	}
+	if err := h.shareRepo.DeleteExpiredPendingDownloadVerifications(now); err != nil {
+		results["pending_share_download_verifications"] = "error: " + err.Error()
+	} else {
+		results["pending_share_download_verifications"] = "cleaned"
+	}
 
 	userID := localUserID(c)
 	logger.Audit("manual_cleanup", userID, nil)

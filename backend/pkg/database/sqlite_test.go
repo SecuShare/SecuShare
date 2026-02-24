@@ -43,6 +43,12 @@ func TestInitSchemaCreatesAndSeedsTables(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&count); err != nil {
 		t.Fatalf("expected users table to exist: %v", err)
 	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM share_allowed_emails`).Scan(&count); err != nil {
+		t.Fatalf("expected share_allowed_emails table to exist: %v", err)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM pending_share_download_verifications`).Scan(&count); err != nil {
+		t.Fatalf("expected pending_share_download_verifications table to exist: %v", err)
+	}
 
 	var setupCompleted string
 	if err := db.QueryRow(`SELECT value FROM app_settings WHERE key = 'setup_completed'`).Scan(&setupCompleted); err != nil {

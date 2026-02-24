@@ -26,6 +26,7 @@ export interface File {
 export interface Share {
   id: string;
   file_id: string;
+  requires_email_verification: boolean;
   max_downloads?: number;
   download_count: number;
   expires_at?: string;
@@ -37,6 +38,8 @@ export interface FileShare {
   id: string;
   file_id: string;
   has_password: boolean;
+  requires_email_verification: boolean;
+  allowed_emails?: string[];
   max_downloads?: number;
   download_count: number;
   expires_at?: string;
@@ -50,6 +53,7 @@ export interface ShareInfo {
   file_size_bytes: number;
   mime_type: string;
   has_password: boolean;
+  requires_email_verification: boolean;
   expires_at?: string;
   download_count: number;
   max_downloads?: number;

@@ -32,9 +32,10 @@ type StorageConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret         string
-	GuestDuration     int // hours
-	OPAQUEServerSetup string
+	JWTSecret              string
+	DownloadCodeHMACSecret string
+	GuestDuration          int // hours
+	OPAQUEServerSetup      string
 }
 
 type ObservabilityConfig struct {
@@ -49,6 +50,10 @@ func Load() *Config {
 	defaultSecret := ""
 	if !isProd {
 		defaultSecret = "dev-secret-change-in-production"
+	}
+	defaultDownloadCodeHMACSecret := ""
+	if !isProd {
+		defaultDownloadCodeHMACSecret = "dev-download-code-hmac-secret-change-in-production"
 	}
 	defaultBindAddress := "0.0.0.0"
 	if isProd {
@@ -73,9 +78,10 @@ func Load() *Config {
 			Path: getEnv("STORAGE_PATH", "./storage/files"),
 		},
 		Auth: AuthConfig{
-			JWTSecret:         getEnv("JWT_SECRET", defaultSecret),
-			GuestDuration:     getEnvIntAny(24, "GUEST_DURATION_HOURS", "GUEST_DURATION"),
-			OPAQUEServerSetup: getEnv("OPAQUE_SERVER_SETUP", ""),
+			JWTSecret:              getEnv("JWT_SECRET", defaultSecret),
+			DownloadCodeHMACSecret: getEnv("DOWNLOAD_CODE_HMAC_SECRET", defaultDownloadCodeHMACSecret),
+			GuestDuration:          getEnvIntAny(24, "GUEST_DURATION_HOURS", "GUEST_DURATION"),
+			OPAQUEServerSetup:      getEnv("OPAQUE_SERVER_SETUP", ""),
 		},
 		Observability: ObservabilityConfig{
 			MetricsEnabled: getEnvBool("METRICS_ENABLED", defaultMetricsEnabled),
@@ -93,6 +99,15 @@ func (c *Config) Validate() error {
 		}
 		if len(c.Auth.JWTSecret) < 32 {
 			return errors.New("JWT_SECRET must be at least 32 characters in production")
+		}
+		if c.Auth.DownloadCodeHMACSecret == "" {
+			return errors.New("DOWNLOAD_CODE_HMAC_SECRET environment variable is required in production")
+		}
+		if len(c.Auth.DownloadCodeHMACSecret) < 32 {
+			return errors.New("DOWNLOAD_CODE_HMAC_SECRET must be at least 32 characters in production")
+		}
+		if c.Auth.DownloadCodeHMACSecret == c.Auth.JWTSecret {
+			return errors.New("DOWNLOAD_CODE_HMAC_SECRET must be different from JWT_SECRET in production")
 		}
 		if c.Auth.OPAQUEServerSetup == "" {
 			return errors.New("OPAQUE_SERVER_SETUP environment variable is required in production")

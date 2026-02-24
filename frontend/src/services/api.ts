@@ -329,6 +329,7 @@ class APIService {
   async createShare(data: {
     file_id: string;
     password?: string;
+    allowed_emails?: string[];
     max_downloads?: number;
     expires_at?: string;
   }): Promise<APIResponse<Share>> {
@@ -342,7 +343,17 @@ class APIService {
     return this.request<ShareInfo>(`/shares/${shareId}`);
   }
 
-  async downloadSharedFile(shareId: string, password?: string): Promise<Response> {
+  async requestDownloadCode(shareId: string, email: string): Promise<APIResponse<{ message: string }>> {
+    return this.request<{ message: string }>(`/shares/${shareId}/request-code`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async downloadSharedFile(
+    shareId: string,
+    data: { password?: string; email?: string; verification_code?: string } = {},
+  ): Promise<Response> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -355,7 +366,7 @@ class APIService {
       {
         method: 'POST',
         headers,
-        body: JSON.stringify({ password }),
+        body: JSON.stringify(data),
       },
       UPLOAD_TIMEOUT_MS,
     );

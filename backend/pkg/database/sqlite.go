@@ -102,6 +102,7 @@ func InitSchema(db *sql.DB) error {
 			password_hash TEXT,
 			max_downloads INTEGER,
 			download_count INTEGER DEFAULT 0,
+			requires_email_verification INTEGER DEFAULT 0,
 			notify_on_download INTEGER DEFAULT 0,
 			notify_email TEXT,
 			expires_at DATETIME,
@@ -110,9 +111,31 @@ func InitSchema(db *sql.DB) error {
 			FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
 		);
 
+		CREATE TABLE IF NOT EXISTS share_allowed_emails (
+			share_id TEXT NOT NULL,
+			email TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (share_id, email),
+			FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE
+		);
+
+		CREATE TABLE IF NOT EXISTS pending_share_download_verifications (
+			share_id TEXT NOT NULL,
+			email TEXT NOT NULL,
+			verification_code_hash TEXT NOT NULL,
+			expires_at DATETIME NOT NULL,
+			resend_after DATETIME NOT NULL,
+			attempts INTEGER DEFAULT 0,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (share_id, email),
+			FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE
+		);
+
 		CREATE INDEX IF NOT EXISTS idx_files_owner_id ON files(owner_id);
 		CREATE INDEX IF NOT EXISTS idx_files_guest_session_id ON files(guest_session_id);
 		CREATE INDEX IF NOT EXISTS idx_shares_file_id ON shares(file_id);
+		CREATE INDEX IF NOT EXISTS idx_share_allowed_emails_share_id ON share_allowed_emails(share_id);
+		CREATE INDEX IF NOT EXISTS idx_pending_share_download_verifications_expires_at ON pending_share_download_verifications(expires_at);
 		CREATE INDEX IF NOT EXISTS idx_guest_sessions_expires_at ON guest_sessions(expires_at);
 		CREATE INDEX IF NOT EXISTS idx_guest_sessions_ip_address ON guest_sessions(ip_address);
 		CREATE INDEX IF NOT EXISTS idx_pending_registrations_expires_at ON pending_registrations(expires_at);
@@ -130,6 +153,9 @@ func InitSchema(db *sql.DB) error {
 	// Add is_admin column to users table if it doesn't exist.
 	if err := addColumnIfNotExists(db, "users", "is_admin", "INTEGER DEFAULT 0"); err != nil {
 		return fmt.Errorf("failed to add is_admin column: %w", err)
+	}
+	if err := addColumnIfNotExists(db, "shares", "requires_email_verification", "INTEGER DEFAULT 0"); err != nil {
+		return fmt.Errorf("failed to add requires_email_verification column: %w", err)
 	}
 
 	// Seed default settings.

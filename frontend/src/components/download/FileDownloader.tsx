@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Shield, Lock, Download, FileIcon, AlertCircle, Loader2 } from 'lucide-react';
+import { Shield, Lock, Download, FileIcon, AlertCircle, Loader2, Mail } from 'lucide-react';
 import { api } from '../../services/api';
 import { decryptFile, decryptKeyWithPassword, verifyChecksum, formatFileSize } from '../../services/cryptoService';
 import { useToast } from '../common/Toast';
@@ -10,8 +10,11 @@ export function FileDownloader() {
   const { shareId } = useParams<{ shareId: string }>();
   const [shareInfo, setShareInfo] = useState<ShareInfo | null>(null);
   const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isRequestingCode, setIsRequestingCode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const showToast = useToast();
 
@@ -60,12 +63,27 @@ export function FileDownloader() {
       return;
     }
 
+    if (shareInfo.requires_email_verification) {
+      if (!email.trim()) {
+        showToast('Please enter your email address', 'error');
+        return;
+      }
+      if (!verificationCode.trim()) {
+        showToast('Please enter the verification code', 'error');
+        return;
+      }
+    }
+
     setIsDownloading(true);
     setError(null);
 
     try {
       // Download encrypted file
-      const response = await api.downloadSharedFile(shareId, shareInfo.has_password ? password : undefined);
+      const response = await api.downloadSharedFile(shareId, {
+        password: shareInfo.has_password ? password : undefined,
+        email: shareInfo.requires_email_verification ? email.trim().toLowerCase() : undefined,
+        verification_code: shareInfo.requires_email_verification ? verificationCode.trim() : undefined,
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -132,6 +150,30 @@ export function FileDownloader() {
       showToast('Download failed', 'error');
     } finally {
       setIsDownloading(false);
+    }
+  };
+
+  const handleRequestCode = async () => {
+    if (!shareId || !shareInfo?.requires_email_verification) return;
+    if (!email.trim()) {
+      showToast('Please enter your email address', 'error');
+      return;
+    }
+
+    setIsRequestingCode(true);
+    setError(null);
+    try {
+      const response = await api.requestDownloadCode(shareId, email.trim().toLowerCase());
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to request verification code');
+      }
+      showToast(response.data?.message || 'If allowed, a verification code has been sent.', 'info');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to request verification code';
+      setError(message);
+      showToast(message, 'error');
+    } finally {
+      setIsRequestingCode(false);
     }
   };
 
@@ -215,6 +257,44 @@ export function FileDownloader() {
             </div>
           )}
 
+          {shareInfo?.requires_email_verification && (
+            <div className="mb-6 space-y-3">
+              <label className="block text-sm font-medium text-gray-700">
+                Email verification required
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email address"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                />
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                  placeholder="Enter 6-digit code"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleRequestCode}
+                  disabled={isRequestingCode || !email.trim()}
+                  className="px-3 py-2 bg-white text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isRequestingCode ? 'Sending...' : 'Send code'}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500">
+                Enter an allowlisted email to receive a one-time verification code.
+              </p>
+            </div>
+          )}
+
           {error && (
             <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg">
               {error}
@@ -223,7 +303,11 @@ export function FileDownloader() {
 
           <button
             onClick={handleDownload}
-            disabled={isDownloading || (shareInfo?.has_password && !password)}
+            disabled={
+              isDownloading ||
+              (shareInfo?.has_password && !password) ||
+              (shareInfo?.requires_email_verification && (!email.trim() || !verificationCode.trim()))
+            }
             className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white py-3 px-4 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isDownloading ? (

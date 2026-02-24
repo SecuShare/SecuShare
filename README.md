@@ -142,6 +142,7 @@ export SERVER_BIND_ADDRESS=127.0.0.1
 export DATABASE_PATH=./storage/secushare.db
 export STORAGE_PATH=./storage/files
 export JWT_SECRET=dev-secret-change-in-production
+export DOWNLOAD_CODE_HMAC_SECRET=dev-download-code-hmac-secret-change-in-production
 export GUEST_DURATION_HOURS=24
 export ALLOW_ORIGINS=http://localhost:5173
 export TRUSTED_PROXIES=127.0.0.1,::1
@@ -179,6 +180,7 @@ VITE_API_URL=http://localhost:8080/api/v1
    ```dotenv
    ENVIRONMENT=development
    JWT_SECRET=dev-secret-at-least-32-characters
+   DOWNLOAD_CODE_HMAC_SECRET=another-dev-secret-at-least-32-characters
    ALLOW_ORIGINS=http://localhost:3000
    VITE_API_URL=/api/v1
    ```
@@ -199,6 +201,7 @@ Use `.env` with production values and set all required variables:
 ```dotenv
 ENVIRONMENT=production
 JWT_SECRET=your-random-secret-at-least-32-characters
+DOWNLOAD_CODE_HMAC_SECRET=your-different-random-secret-at-least-32-characters
 OPAQUE_SERVER_SETUP=your-stable-base64-encoded-opaque-server-setup
 ALLOW_ORIGINS=https://your-domain.example
 SMTP_HOST=smtp.your-provider.example
@@ -354,6 +357,7 @@ Environment=SERVER_BIND_ADDRESS=127.0.0.1
 Environment=DATABASE_PATH=/opt/secushare/data/secushare.db
 Environment=STORAGE_PATH=/opt/secushare/storage/files
 Environment=JWT_SECRET=your-secure-random-string-at-least-32-characters
+Environment=DOWNLOAD_CODE_HMAC_SECRET=your-different-random-string-at-least-32-characters
 Environment=OPAQUE_SERVER_SETUP=your-base64-encoded-opaque-setup
 Environment=GUEST_DURATION_HOURS=24
 Environment=ALLOW_ORIGINS=https://your-domain.com
@@ -576,6 +580,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prod-smoke-test.ps1 
 | `DATABASE_PATH` | `./storage/secushare.db` | Path to SQLite database file |
 | `STORAGE_PATH` | `./storage/files` | Directory for encrypted file storage |
 | `JWT_SECRET` | (required in production) | Secret key for JWT signing (min 32 characters) |
+| `DOWNLOAD_CODE_HMAC_SECRET` | (required in production) | Dedicated HMAC key for share download verification codes (min 32 characters, must differ from `JWT_SECRET`) |
 | `OPAQUE_SERVER_SETUP` | auto-generated in development | Stable server key material for OPAQUE (required in production) |
 | `GUEST_DURATION_HOURS` | `24` | Guest session validity period |
 | `ALLOW_ORIGINS` | `http://localhost:5173` | CORS allowed origins (comma-separated) |

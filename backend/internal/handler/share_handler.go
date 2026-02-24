@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,6 +32,7 @@ var shareAttempts = &sharePasswordAttempts{
 
 const maxSharePasswordAttempts = 5
 const sharePasswordLockDuration = 15 * time.Minute
+const maxAllowedShareEmails = 50
 
 func (s *sharePasswordAttempts) check(key string) bool {
 	s.mu.Lock()
@@ -95,10 +98,37 @@ func NewShareHandler(shareSvc *service.ShareService, fileSvc *service.FileServic
 }
 
 type CreateShareRequest struct {
-	FileID       string  `json:"file_id"`
-	Password     *string `json:"password"`
-	MaxDownloads *int    `json:"max_downloads"`
-	ExpiresAt    *string `json:"expires_at"`
+	FileID        string   `json:"file_id"`
+	Password      *string  `json:"password"`
+	MaxDownloads  *int     `json:"max_downloads"`
+	ExpiresAt     *string  `json:"expires_at"`
+	AllowedEmails []string `json:"allowed_emails"`
+}
+
+func normalizeAllowedEmails(input []string) ([]string, error) {
+	seen := make(map[string]struct{})
+	normalized := make([]string, 0, len(input))
+
+	for _, raw := range input {
+		email := normalizeEmail(raw)
+		if email == "" {
+			continue
+		}
+		if !isValidEmail(email) {
+			return nil, fmt.Errorf("invalid allowed email: %s", raw)
+		}
+		if _, exists := seen[email]; exists {
+			continue
+		}
+		seen[email] = struct{}{}
+		normalized = append(normalized, email)
+	}
+
+	if len(normalized) > maxAllowedShareEmails {
+		return nil, fmt.Errorf("allowed email list exceeds maximum of %d", maxAllowedShareEmails)
+	}
+
+	return normalized, nil
 }
 
 func (h *ShareHandler) Create(c *fiber.Ctx) error {
@@ -147,11 +177,17 @@ func (h *ShareHandler) Create(c *fiber.Ctx) error {
 		expiresAt = &t
 	}
 
+	allowedEmails, err := normalizeAllowedEmails(req.AllowedEmails)
+	if err != nil {
+		return response.BadRequest(c, err.Error())
+	}
+
 	shareReq := &service.CreateShareRequest{
-		FileID:       req.FileID,
-		Password:     req.Password,
-		MaxDownloads: req.MaxDownloads,
-		ExpiresAt:    expiresAt,
+		FileID:        req.FileID,
+		Password:      req.Password,
+		MaxDownloads:  req.MaxDownloads,
+		ExpiresAt:     expiresAt,
+		AllowedEmails: allowedEmails,
 	}
 
 	share, err := h.shareSvc.Create(shareReq)
@@ -162,8 +198,14 @@ func (h *ShareHandler) Create(c *fiber.Ctx) error {
 	return response.Success(c, share)
 }
 
-type GetShareRequest struct {
-	Password *string `json:"password"`
+type DownloadShareRequest struct {
+	Password         *string `json:"password"`
+	Email            *string `json:"email"`
+	VerificationCode *string `json:"verification_code"`
+}
+
+type RequestDownloadCodeRequest struct {
+	Email string `json:"email"`
 }
 
 func (h *ShareHandler) GetShare(c *fiber.Ctx) error {
@@ -185,14 +227,52 @@ func (h *ShareHandler) GetShare(c *fiber.Ctx) error {
 	displayName := mimeToDisplayName(file.MimeType)
 
 	return response.Success(c, map[string]interface{}{
-		"id":              share.ID,
-		"file_name":       displayName,
-		"file_size_bytes": file.FileSize,
-		"mime_type":       file.MimeType,
-		"has_password":    share.PasswordHash != nil,
-		"expires_at":      share.ExpiresAt,
-		"download_count":  share.DownloadCount,
-		"max_downloads":   share.MaxDownloads,
+		"id":                          share.ID,
+		"file_name":                   displayName,
+		"file_size_bytes":             file.FileSize,
+		"mime_type":                   file.MimeType,
+		"has_password":                share.PasswordHash != nil,
+		"requires_email_verification": share.RequiresEmailVerification,
+		"expires_at":                  share.ExpiresAt,
+		"download_count":              share.DownloadCount,
+		"max_downloads":               share.MaxDownloads,
+	})
+}
+
+func (h *ShareHandler) RequestDownloadCode(c *fiber.Ctx) error {
+	shareID := c.Params("id")
+
+	var req RequestDownloadCodeRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid request body")
+	}
+
+	req.Email = normalizeEmail(req.Email)
+	if req.Email == "" {
+		return response.BadRequest(c, "email is required")
+	}
+	if !isValidEmail(req.Email) {
+		return response.BadRequest(c, "invalid email format")
+	}
+
+	if err := h.shareSvc.RequestDownloadVerificationCode(shareID, req.Email); err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidEmailFormat),
+			errors.Is(err, service.ErrShareEmailVerificationNotRequired):
+			return response.BadRequest(c, err.Error())
+		case errors.Is(err, service.ErrShareExpired),
+			errors.Is(err, service.ErrDownloadLimitReached),
+			errors.Is(err, service.ErrShareInactive):
+			return response.Error(c, fiber.StatusGone, err.Error())
+		case errors.Is(err, service.ErrShareNotFound):
+			return response.NotFound(c, "share not found")
+		default:
+			return response.InternalError(c, "failed to process download verification request")
+		}
+	}
+
+	return response.Success(c, map[string]string{
+		"message": "If this email is allowed, a verification code has been sent.",
 	})
 }
 
@@ -205,22 +285,40 @@ func (h *ShareHandler) DownloadFile(c *fiber.Ctx) error {
 		return response.Error(c, fiber.StatusTooManyRequests, "too many failed attempts, please try again later")
 	}
 
-	var req GetShareRequest
+	var req DownloadShareRequest
 	if err := c.BodyParser(&req); err != nil {
 		// Body is optional for non-password-protected shares
 		req.Password = nil
+		req.Email = nil
+		req.VerificationCode = nil
 	}
 
-	file, err := h.shareSvc.GetFile(shareID, req.Password)
+	file, err := h.shareSvc.GetFile(shareID, req.Password, req.Email, req.VerificationCode)
 	if err != nil {
-		if strings.Contains(err.Error(), "password") {
+		if errors.Is(err, service.ErrDownloadVerificationValidation) {
+			return response.InternalError(c, "failed to process download")
+		}
+
+		switch {
+		case errors.Is(err, service.ErrPasswordRequired), errors.Is(err, service.ErrInvalidPassword):
 			shareAttempts.recordFailure(attemptKey)
 			return response.Error(c, fiber.StatusUnauthorized, err.Error())
-		}
-		if strings.Contains(err.Error(), "expired") || strings.Contains(err.Error(), "limit") || strings.Contains(err.Error(), "active") {
+		case errors.Is(err, service.ErrEmailRequired),
+			errors.Is(err, service.ErrVerificationCodeRequired),
+			errors.Is(err, service.ErrInvalidEmailFormat):
+			return response.BadRequest(c, err.Error())
+		case errors.Is(err, service.ErrInvalidVerificationCode):
+			return response.Error(c, fiber.StatusUnauthorized, err.Error())
+		case errors.Is(err, service.ErrShareExpired),
+			errors.Is(err, service.ErrDownloadLimitReached),
+			errors.Is(err, service.ErrShareInactive):
 			return response.Error(c, fiber.StatusGone, err.Error())
+		case errors.Is(err, service.ErrShareNotFound),
+			errors.Is(err, service.ErrFileNotFound):
+			return response.NotFound(c, err.Error())
+		default:
+			return response.InternalError(c, "failed to process download")
 		}
-		return response.NotFound(c, err.Error())
 	}
 
 	// Successful access — reset brute-force counter
@@ -278,15 +376,22 @@ func (h *ShareHandler) ListByFile(c *fiber.Ctx) error {
 
 	result := make([]map[string]interface{}, 0, len(shares))
 	for _, share := range shares {
+		allowedEmails, err := h.shareSvc.GetAllowedEmails(share.ID)
+		if err != nil {
+			return response.InternalError(c, "failed to get shares")
+		}
+
 		result = append(result, map[string]interface{}{
-			"id":             share.ID,
-			"file_id":        share.FileID,
-			"has_password":   share.PasswordHash != nil,
-			"max_downloads":  share.MaxDownloads,
-			"download_count": share.DownloadCount,
-			"expires_at":     share.ExpiresAt,
-			"created_at":     share.CreatedAt,
-			"is_active":      share.IsActive,
+			"id":                          share.ID,
+			"file_id":                     share.FileID,
+			"has_password":                share.PasswordHash != nil,
+			"requires_email_verification": share.RequiresEmailVerification,
+			"allowed_emails":              allowedEmails,
+			"max_downloads":               share.MaxDownloads,
+			"download_count":              share.DownloadCount,
+			"expires_at":                  share.ExpiresAt,
+			"created_at":                  share.CreatedAt,
+			"is_active":                   share.IsActive,
 		})
 	}
 
@@ -305,8 +410,11 @@ func (h *ShareHandler) Deactivate(c *fiber.Ctx) error {
 	}
 
 	if err := h.shareSvc.Deactivate(shareID, userID, isGuest); err != nil {
-		if strings.Contains(err.Error(), "unauthorized") {
+		if errors.Is(err, service.ErrUnauthorized) {
 			return response.Forbidden(c, "unauthorized")
+		}
+		if errors.Is(err, service.ErrShareNotFound) || errors.Is(err, service.ErrFileNotFound) {
+			return response.NotFound(c, "share not found")
 		}
 		return response.InternalError(c, "failed to deactivate share")
 	}

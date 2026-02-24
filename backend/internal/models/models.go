@@ -48,14 +48,25 @@ type File struct {
 }
 
 type Share struct {
-	ID            string     `json:"id"`
-	FileID        string     `json:"file_id"`
-	PasswordHash  *string    `json:"-"`
-	MaxDownloads  *int       `json:"max_downloads"`
-	DownloadCount int        `json:"download_count"`
-	ExpiresAt     *time.Time `json:"expires_at"`
-	CreatedAt     time.Time  `json:"created_at"`
-	IsActive      bool       `json:"is_active"`
+	ID                        string     `json:"id"`
+	FileID                    string     `json:"file_id"`
+	PasswordHash              *string    `json:"-"`
+	MaxDownloads              *int       `json:"max_downloads"`
+	DownloadCount             int        `json:"download_count"`
+	RequiresEmailVerification bool       `json:"requires_email_verification"`
+	ExpiresAt                 *time.Time `json:"expires_at"`
+	CreatedAt                 time.Time  `json:"created_at"`
+	IsActive                  bool       `json:"is_active"`
+}
+
+type PendingShareDownloadVerification struct {
+	ShareID              string
+	Email                string
+	VerificationCodeHash string
+	ExpiresAt            time.Time
+	ResendAfter          time.Time
+	Attempts             int
+	CreatedAt            time.Time
 }
 
 type StorageInfo struct {

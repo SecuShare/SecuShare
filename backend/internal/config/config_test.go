@@ -14,8 +14,9 @@ func baseProdConfig() *Config {
 			AllowOrigins: "https://secushare.example.com",
 		},
 		Auth: AuthConfig{
-			JWTSecret:         strings.Repeat("x", 32),
-			OPAQUEServerSetup: "opaque-setup",
+			JWTSecret:              strings.Repeat("x", 32),
+			DownloadCodeHMACSecret: strings.Repeat("y", 32),
+			OPAQUEServerSetup:      "opaque-setup",
 		},
 		Observability: ObservabilityConfig{
 			MetricsEnabled: false,
@@ -57,5 +58,29 @@ func TestValidate_RejectsEmptyBindAddress(t *testing.T) {
 	err := cfg.Validate()
 	if err == nil || !strings.Contains(err.Error(), "SERVER_BIND_ADDRESS") {
 		t.Fatalf("expected SERVER_BIND_ADDRESS validation error, got: %v", err)
+	}
+}
+
+func TestValidate_ProductionRequiresDedicatedDownloadCodeHMACSecret(t *testing.T) {
+	t.Setenv("SMTP_HOST", "smtp.example.com")
+
+	cfg := baseProdConfig()
+	cfg.Auth.DownloadCodeHMACSecret = ""
+
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "DOWNLOAD_CODE_HMAC_SECRET") {
+		t.Fatalf("expected DOWNLOAD_CODE_HMAC_SECRET validation error, got: %v", err)
+	}
+}
+
+func TestValidate_ProductionRejectsSharedJWTAndDownloadCodeSecrets(t *testing.T) {
+	t.Setenv("SMTP_HOST", "smtp.example.com")
+
+	cfg := baseProdConfig()
+	cfg.Auth.DownloadCodeHMACSecret = cfg.Auth.JWTSecret
+
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "must be different") {
+		t.Fatalf("expected dedicated secret validation error, got: %v", err)
 	}
 }
