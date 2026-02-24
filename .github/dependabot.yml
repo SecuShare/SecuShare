@@ -18,6 +18,9 @@ updates:
       day: "monday"
       time: "06:15"
     ignore:
+      - dependency-name: "eslint"
+        update-types:
+          - "version-update:semver-major"
       - dependency-name: "@eslint/js"
         update-types:
           - "version-update:semver-major"
