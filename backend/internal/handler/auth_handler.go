@@ -354,8 +354,14 @@ func (h *AuthHandler) CreateGuestSession(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) GetMe(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(string)
-	isGuest := c.Locals("is_guest").(bool)
+	userID, ok := c.Locals("user_id").(string)
+	if !ok || userID == "" {
+		return response.Unauthorized(c, "authentication required")
+	}
+	isGuest, ok := c.Locals("is_guest").(bool)
+	if !ok {
+		return response.Unauthorized(c, "authentication required")
+	}
 
 	if isGuest {
 		session, err := h.authSvc.GetGuestSessionByID(userID)
@@ -384,11 +390,16 @@ func (h *AuthHandler) GetMe(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) GetStorageInfo(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(string)
-	isGuest := c.Locals("is_guest").(bool)
-
-	var quota int64 = 1073741824 // 1GB
-	var used int64 = 0
+	userID, ok := c.Locals("user_id").(string)
+	if !ok || userID == "" {
+		return response.Unauthorized(c, "authentication required")
+	}
+	isGuest, ok := c.Locals("is_guest").(bool)
+	if !ok {
+		return response.Unauthorized(c, "authentication required")
+	}
+	var quota int64
+	var used int64
 
 	if isGuest {
 		storageInfo, err := h.authSvc.GetGuestStorageInfo(userID)

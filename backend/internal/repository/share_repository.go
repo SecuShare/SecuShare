@@ -91,6 +91,9 @@ func (r *ShareRepository) GetByFileID(fileID string) ([]*models.Share, error) {
 		share.IsActive = isActive == 1
 		shares = append(shares, share)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return shares, nil
 }
 

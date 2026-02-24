@@ -16,9 +16,9 @@ import type {
 } from '../types';
 import { authTrace, authTraceError, emailHint, newAuthTraceId } from './authTrace';
 
-const API_BASE = import.meta.env.VITE_API_URL;
-if (!API_BASE) {
-  console.error('VITE_API_URL environment variable is not configured. API calls will fail.');
+const API_BASE = import.meta.env.VITE_API_URL || '/api/v1';
+if (!import.meta.env.VITE_API_URL) {
+  console.warn('VITE_API_URL is not configured. Falling back to /api/v1.');
 }
 
 const REQUEST_TIMEOUT_MS = 30000;

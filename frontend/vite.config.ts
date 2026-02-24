@@ -11,9 +11,8 @@ function validateEnvPlugin(): Plugin {
       if (config.command === 'build') {
         const apiUrl = config.env?.VITE_API_URL ?? process.env.VITE_API_URL
         if (!apiUrl) {
-          throw new Error(
-            'VITE_API_URL environment variable is required for production builds. ' +
-            'Set it in .env.production or pass it via the environment.'
+          console.warn(
+            'VITE_API_URL is not set. Falling back to default "/api/v1" at runtime.'
           )
         }
       }

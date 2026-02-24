@@ -57,7 +57,10 @@ func NewRateLimiterWithKey(limit int, window time.Duration, keyFunc KeyFunc) *Ra
 // multiple IPs, and prevents shared IPs from unfairly limiting distinct users.
 func IPAndUserKey(c *fiber.Ctx) string {
 	ip := c.IP()
-	userID, _ := c.Locals("user_id").(string)
+	userID, ok := c.Locals("user_id").(string)
+	if !ok {
+		return ip
+	}
 	if userID != "" {
 		return ip + ":" + userID
 	}

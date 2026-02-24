@@ -126,7 +126,9 @@ func (r *GuestSessionRepository) ReserveStorage(id string, size int64) (bool, er
 
 // ReleaseStorage returns reserved space back to available quota.
 func (r *GuestSessionRepository) ReleaseStorage(id string, size int64) {
-	r.db.Exec(`UPDATE guest_sessions SET storage_used_bytes = MAX(0, storage_used_bytes - ?) WHERE id = ?`, size, id)
+	if _, err := r.db.Exec(`UPDATE guest_sessions SET storage_used_bytes = MAX(0, storage_used_bytes - ?) WHERE id = ?`, size, id); err != nil {
+		return
+	}
 }
 
 func (r *GuestSessionRepository) DeleteExpired() error {

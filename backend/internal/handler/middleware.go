@@ -140,13 +140,16 @@ func OptionalAuthMiddleware(authSvc *service.AuthService) fiber.Handler {
 // Must be chained after AuthMiddleware.
 func AdminMiddleware(authSvc *service.AuthService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		isGuest, _ := c.Locals("is_guest").(bool)
+		isGuest, ok := c.Locals("is_guest").(bool)
+		if !ok {
+			return response.Unauthorized(c, "authentication required")
+		}
 		if isGuest {
 			return response.Forbidden(c, "admin access required")
 		}
 
-		userID, _ := c.Locals("user_id").(string)
-		if userID == "" {
+		userID, ok := c.Locals("user_id").(string)
+		if !ok || userID == "" {
 			return response.Unauthorized(c, "authentication required")
 		}
 

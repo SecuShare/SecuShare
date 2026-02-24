@@ -84,19 +84,24 @@ func (h *HealthHandler) checkDatabase() error {
 // checkStorage verifies storage directory is accessible and writable
 func (h *HealthHandler) checkStorage() error {
 	// Ensure storage directory exists
-	if err := os.MkdirAll(h.storagePath, 0755); err != nil {
+	if err := os.MkdirAll(h.storagePath, 0750); err != nil {
 		return err
 	}
 
 	// Try to create a test file to verify write permissions
 	testFile := filepath.Join(h.storagePath, ".healthcheck")
-	f, err := os.Create(testFile)
+	// #nosec G304 -- testFile is constrained to the configured storage directory.
+	f, err := os.OpenFile(testFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
-	f.Close()
+	if err := f.Close(); err != nil {
+		return err
+	}
 
 	// Clean up the test file
-	os.Remove(testFile)
+	if err := os.Remove(testFile); err != nil && !os.IsNotExist(err) {
+		return err
+	}
 	return nil
 }

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/prometheus/client_golang/prometheus"
@@ -11,7 +12,6 @@ import (
 
 // MetricsHandler handles Prometheus metrics endpoint
 type MetricsHandler struct {
-	registry *prometheus.Registry
 }
 
 var (
@@ -75,9 +75,7 @@ var (
 
 // NewMetricsHandler creates a new metrics handler
 func NewMetricsHandler() *MetricsHandler {
-	return &MetricsHandler{
-		registry: prometheus.DefaultRegisterer.(*prometheus.Registry),
-	}
+	return &MetricsHandler{}
 }
 
 // Handler returns the Prometheus metrics handler for Fiber
@@ -108,6 +106,7 @@ func MetricsMiddleware() fiber.Handler {
 		// Increment active connections
 		activeConnections.Inc()
 		defer activeConnections.Dec()
+		start := time.Now()
 
 		// Continue request processing
 		err := c.Next()
@@ -131,6 +130,7 @@ func MetricsMiddleware() fiber.Handler {
 		}
 
 		totalRequests.WithLabelValues(c.Method(), path, statusStr).Inc()
+		httpDuration.WithLabelValues(c.Method(), path, statusStr).Observe(time.Since(start).Seconds())
 
 		return err
 	}

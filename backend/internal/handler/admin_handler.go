@@ -37,6 +37,14 @@ func NewAdminHandler(
 	}
 }
 
+func localUserID(c *fiber.Ctx) string {
+	userID, ok := c.Locals("user_id").(string)
+	if !ok {
+		return ""
+	}
+	return userID
+}
+
 // CheckSetupStatus returns whether setup has been completed.
 func (h *AdminHandler) CheckSetupStatus(c *fiber.Ctx) error {
 	return response.Success(c, map[string]bool{
@@ -132,7 +140,7 @@ func (h *AdminHandler) UpdateSettings(c *fiber.Ctx) error {
 		return response.InternalError(c, "failed to update settings")
 	}
 
-	userID, _ := c.Locals("user_id").(string)
+	userID := localUserID(c)
 	logger.Audit("settings_updated", userID, nil)
 
 	return response.Success(c, map[string]string{"message": "settings updated"})
@@ -163,7 +171,7 @@ func (h *AdminHandler) DeleteUser(c *fiber.Ctx) error {
 		return response.BadRequest(c, "user ID is required")
 	}
 
-	adminID, _ := c.Locals("user_id").(string)
+	adminID := localUserID(c)
 
 	if err := h.adminSvc.DeleteUser(targetID, adminID); err != nil {
 		switch err.Error() {
@@ -220,7 +228,7 @@ func (h *AdminHandler) TriggerCleanup(c *fiber.Ctx) error {
 		results["pending_registrations"] = "cleaned"
 	}
 
-	userID, _ := c.Locals("user_id").(string)
+	userID := localUserID(c)
 	logger.Audit("manual_cleanup", userID, nil)
 
 	return response.Success(c, results)

@@ -43,7 +43,7 @@ type ObservabilityConfig struct {
 }
 
 func Load() *Config {
-	loadDotEnvIfPresent(".env", "backend/.env")
+	loadDotEnvIfPresent()
 
 	isProd := getEnv("ENVIRONMENT", "development") == "production"
 	defaultSecret := ""
@@ -130,15 +130,6 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intVal, err := strconv.Atoi(value); err == nil {
-			return intVal
-		}
-	}
-	return defaultValue
-}
-
 func getEnvIntAny(defaultValue int, keys ...string) int {
 	for _, key := range keys {
 		if value := os.Getenv(key); value != "" {
@@ -188,8 +179,9 @@ func splitCSV(value string) []string {
 	return out
 }
 
-func loadDotEnvIfPresent(paths ...string) {
-	for _, path := range paths {
+func loadDotEnvIfPresent() {
+	for _, path := range []string{".env", "backend/.env"} {
+		// #nosec G304 -- paths are hardcoded application dotenv locations.
 		content, err := os.ReadFile(path)
 		if err != nil {
 			continue

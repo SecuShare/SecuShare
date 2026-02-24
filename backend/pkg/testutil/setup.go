@@ -30,31 +30,42 @@ func SetupTest(t *testing.T) (*sql.DB, *TestConfig, func()) {
 		DBPath:      filepath.Join(tmpDir, "test.db"),
 		StoragePath: filepath.Join(tmpDir, "storage"),
 	}
+	cleanupTmpDir := func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("Failed to remove temp directory %q: %v", tmpDir, err)
+		}
+	}
 
 	// Create test database
 	db, err := database.Initialize(cfg.DBPath)
 	if err != nil {
-		os.RemoveAll(tmpDir)
+		cleanupTmpDir()
 		t.Fatalf("Failed to open test database: %v", err)
 	}
 
 	// Initialize schema using the same logic as runtime startup.
 	if err := database.InitSchema(db); err != nil {
-		db.Close()
-		os.RemoveAll(tmpDir)
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("Failed to close test database after schema init error: %v", closeErr)
+		}
+		cleanupTmpDir()
 		t.Fatalf("Failed to initialize test schema: %v", err)
 	}
 
 	// Create storage directory
-	if err := os.MkdirAll(cfg.StoragePath, 0755); err != nil {
-		db.Close()
-		os.RemoveAll(tmpDir)
+	if err := os.MkdirAll(cfg.StoragePath, 0750); err != nil {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("Failed to close test database after storage init error: %v", closeErr)
+		}
+		cleanupTmpDir()
 		t.Fatalf("Failed to create storage directory: %v", err)
 	}
 
 	cleanup := func() {
-		db.Close()
-		os.RemoveAll(tmpDir)
+		if err := db.Close(); err != nil {
+			t.Logf("Failed to close test database: %v", err)
+		}
+		cleanupTmpDir()
 	}
 
 	return db, cfg, cleanup

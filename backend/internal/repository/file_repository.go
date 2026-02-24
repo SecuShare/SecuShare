@@ -54,6 +54,9 @@ func (r *FileRepository) GetByOwnerID(ownerID string) ([]*models.File, error) {
 		}
 		files = append(files, file)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return files, nil
 }
 
@@ -75,6 +78,9 @@ func (r *FileRepository) GetByGuestSessionID(sessionID string) ([]*models.File, 
 			return nil, err
 		}
 		files = append(files, file)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return files, nil
 }
@@ -104,6 +110,9 @@ func (r *FileRepository) GetExpired(now time.Time) ([]*models.File, error) {
 		}
 		files = append(files, file)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return files, nil
 }
 
@@ -128,6 +137,9 @@ func (r *FileRepository) GetByExpiredGuestSessions(now time.Time) ([]*models.Fil
 			return nil, err
 		}
 		files = append(files, file)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return files, nil
 }

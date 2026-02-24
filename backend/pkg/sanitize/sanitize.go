@@ -1,13 +1,9 @@
 package sanitize
 
 import (
-	"regexp"
 	"strings"
 	"unicode"
 )
-
-// FilenameRegex matches characters that are safe for filenames
-var filenameRegex = regexp.MustCompile(`[^a-zA-Z0-9._\-\s]`)
 
 // SanitizeFilename removes potentially dangerous characters from a filename
 // to prevent header injection and XSS attacks

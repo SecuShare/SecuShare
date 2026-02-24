@@ -13,7 +13,7 @@ import (
 
 func Initialize(dbPath string) (*sql.DB, error) {
 	dir := filepath.Dir(dbPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 
@@ -171,6 +171,9 @@ func addColumnIfNotExists(db *sql.DB, table, column, colDef string) error {
 		if strings.EqualFold(name, column) {
 			return nil // column already exists
 		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
 	}
 
 	_, err = db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, colDef))

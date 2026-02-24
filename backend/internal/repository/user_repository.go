@@ -81,7 +81,9 @@ func (r *UserRepository) ReserveStorage(id string, size int64) (bool, error) {
 
 // ReleaseStorage returns reserved space back to available quota.
 func (r *UserRepository) ReleaseStorage(id string, size int64) {
-	r.db.Exec(`UPDATE users SET storage_used_bytes = MAX(0, storage_used_bytes - ?) WHERE id = ?`, size, id)
+	if _, err := r.db.Exec(`UPDATE users SET storage_used_bytes = MAX(0, storage_used_bytes - ?) WHERE id = ?`, size, id); err != nil {
+		return
+	}
 }
 
 func (r *UserRepository) GetStorageInfo(id string) (*models.StorageInfo, error) {

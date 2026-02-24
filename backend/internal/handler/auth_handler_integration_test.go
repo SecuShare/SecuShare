@@ -96,7 +96,7 @@ func performJSONRequest(
 	app *fiber.App,
 	method, path string,
 	payload interface{},
-) (*http.Response, authHandlerTestResponse) {
+) (int, authHandlerTestResponse) {
 	t.Helper()
 
 	var body io.Reader = http.NoBody
@@ -117,6 +117,7 @@ func performJSONRequest(
 	if err != nil {
 		t.Fatalf("app.Test failed: %v", err)
 	}
+	statusCode := resp.StatusCode
 	defer resp.Body.Close()
 
 	rawResp, err := io.ReadAll(resp.Body)
@@ -129,7 +130,7 @@ func performJSONRequest(
 		t.Fatalf("unmarshal response body: %v, body=%s", err, string(rawResp))
 	}
 
-	return resp, parsed
+	return statusCode, parsed
 }
 
 func computeVerificationCodeHash(jwtSecret, email, code string) string {
@@ -169,13 +170,13 @@ func TestAuthHandler_RegisterPassword_SendsVerificationRequest(t *testing.T) {
 	email := "register@example.com"
 	password := "Passw0rd!123"
 
-	resp, parsed := performJSONRequest(t, app, http.MethodPost, "/api/v1/auth/register", map[string]string{
+	statusCode, parsed := performJSONRequest(t, app, http.MethodPost, "/api/v1/auth/register", map[string]string{
 		"email":    email,
 		"password": password,
 	})
 
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected HTTP 200, got %d (error=%q)", resp.StatusCode, parsed.Error)
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected HTTP 200, got %d (error=%q)", statusCode, parsed.Error)
 	}
 	if !parsed.Success {
 		t.Fatalf("expected success=true, got false (error=%q)", parsed.Error)
@@ -204,23 +205,23 @@ func TestAuthHandler_VerifyRegistration_Success(t *testing.T) {
 	password := "Passw0rd!123"
 	code := "123456"
 
-	registerResp, registerParsed := performJSONRequest(t, app, http.MethodPost, "/api/v1/auth/register", map[string]string{
+	registerStatusCode, registerParsed := performJSONRequest(t, app, http.MethodPost, "/api/v1/auth/register", map[string]string{
 		"email":    email,
 		"password": password,
 	})
-	if registerResp.StatusCode != http.StatusOK || !registerParsed.Success {
-		t.Fatalf("register failed: status=%d success=%v error=%q", registerResp.StatusCode, registerParsed.Success, registerParsed.Error)
+	if registerStatusCode != http.StatusOK || !registerParsed.Success {
+		t.Fatalf("register failed: status=%d success=%v error=%q", registerStatusCode, registerParsed.Success, registerParsed.Error)
 	}
 
 	setPendingVerificationCode(t, pendingRepo, jwtSecret, email, code)
 
-	verifyResp, verifyParsed := performJSONRequest(t, app, http.MethodPost, "/api/v1/auth/register/verify", map[string]string{
+	verifyStatusCode, verifyParsed := performJSONRequest(t, app, http.MethodPost, "/api/v1/auth/register/verify", map[string]string{
 		"email":             email,
 		"verification_code": code,
 	})
 
-	if verifyResp.StatusCode != http.StatusOK {
-		t.Fatalf("expected HTTP 200, got %d (error=%q)", verifyResp.StatusCode, verifyParsed.Error)
+	if verifyStatusCode != http.StatusOK {
+		t.Fatalf("expected HTTP 200, got %d (error=%q)", verifyStatusCode, verifyParsed.Error)
 	}
 	if !verifyParsed.Success {
 		t.Fatalf("expected success=true, got false (error=%q)", verifyParsed.Error)
@@ -250,23 +251,23 @@ func TestAuthHandler_VerifyRegistration_FailsOnWrongCode(t *testing.T) {
 	email := "verify-fail@example.com"
 	password := "Passw0rd!123"
 
-	registerResp, registerParsed := performJSONRequest(t, app, http.MethodPost, "/api/v1/auth/register", map[string]string{
+	registerStatusCode, registerParsed := performJSONRequest(t, app, http.MethodPost, "/api/v1/auth/register", map[string]string{
 		"email":    email,
 		"password": password,
 	})
-	if registerResp.StatusCode != http.StatusOK || !registerParsed.Success {
-		t.Fatalf("register failed: status=%d success=%v error=%q", registerResp.StatusCode, registerParsed.Success, registerParsed.Error)
+	if registerStatusCode != http.StatusOK || !registerParsed.Success {
+		t.Fatalf("register failed: status=%d success=%v error=%q", registerStatusCode, registerParsed.Success, registerParsed.Error)
 	}
 
 	setPendingVerificationCode(t, pendingRepo, jwtSecret, email, "123456")
 
-	verifyResp, verifyParsed := performJSONRequest(t, app, http.MethodPost, "/api/v1/auth/register/verify", map[string]string{
+	verifyStatusCode, verifyParsed := performJSONRequest(t, app, http.MethodPost, "/api/v1/auth/register/verify", map[string]string{
 		"email":             email,
 		"verification_code": "000000",
 	})
 
-	if verifyResp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("expected HTTP 401, got %d (error=%q)", verifyResp.StatusCode, verifyParsed.Error)
+	if verifyStatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected HTTP 401, got %d (error=%q)", verifyStatusCode, verifyParsed.Error)
 	}
 	if verifyParsed.Success {
 		t.Fatal("expected success=false for wrong verification code")
@@ -280,17 +281,17 @@ func TestAuthHandler_LegacyRegistrationEndpoints_ReturnGone(t *testing.T) {
 	app, _, _, cleanup := newAuthHandlerTestApp(t)
 	defer cleanup()
 
-	initResp, initParsed := performJSONRequest(t, app, http.MethodPost, "/api/v1/auth/register/init", map[string]string{})
-	if initResp.StatusCode != http.StatusGone {
-		t.Fatalf("expected /register/init status 410, got %d", initResp.StatusCode)
+	initStatusCode, initParsed := performJSONRequest(t, app, http.MethodPost, "/api/v1/auth/register/init", map[string]string{})
+	if initStatusCode != http.StatusGone {
+		t.Fatalf("expected /register/init status 410, got %d", initStatusCode)
 	}
 	if initParsed.Success {
 		t.Fatal("expected /register/init success=false")
 	}
 
-	finishResp, finishParsed := performJSONRequest(t, app, http.MethodPost, "/api/v1/auth/register/finish", map[string]string{})
-	if finishResp.StatusCode != http.StatusGone {
-		t.Fatalf("expected /register/finish status 410, got %d", finishResp.StatusCode)
+	finishStatusCode, finishParsed := performJSONRequest(t, app, http.MethodPost, "/api/v1/auth/register/finish", map[string]string{})
+	if finishStatusCode != http.StatusGone {
+		t.Fatalf("expected /register/finish status 410, got %d", finishStatusCode)
 	}
 	if finishParsed.Success {
 		t.Fatal("expected /register/finish success=false")

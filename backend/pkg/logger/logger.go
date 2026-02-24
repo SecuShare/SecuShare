@@ -214,7 +214,10 @@ func Middleware() fiber.Handler {
 			event = DefaultLogger.Error().Err(err)
 		}
 
-		requestID, _ := c.Locals("request_id").(string)
+		requestID := ""
+		if rid, ok := c.Locals("request_id").(string); ok {
+			requestID = rid
+		}
 
 		event.
 			Str("method", c.Method()).

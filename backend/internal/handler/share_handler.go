@@ -112,8 +112,14 @@ func (h *ShareHandler) Create(c *fiber.Ctx) error {
 	}
 
 	// Verify file ownership
-	userID := c.Locals("user_id").(string)
-	isGuest := c.Locals("is_guest").(bool)
+	userID, ok := c.Locals("user_id").(string)
+	if !ok || userID == "" {
+		return response.Unauthorized(c, "authentication required")
+	}
+	isGuest, ok := c.Locals("is_guest").(bool)
+	if !ok {
+		return response.Unauthorized(c, "authentication required")
+	}
 
 	file, err := h.fileSvc.GetByID(req.FileID)
 	if err != nil {
@@ -240,8 +246,14 @@ func (h *ShareHandler) DownloadFile(c *fiber.Ctx) error {
 
 func (h *ShareHandler) ListByFile(c *fiber.Ctx) error {
 	fileID := c.Params("id")
-	userID := c.Locals("user_id").(string)
-	isGuest := c.Locals("is_guest").(bool)
+	userID, ok := c.Locals("user_id").(string)
+	if !ok || userID == "" {
+		return response.Unauthorized(c, "authentication required")
+	}
+	isGuest, ok := c.Locals("is_guest").(bool)
+	if !ok {
+		return response.Unauthorized(c, "authentication required")
+	}
 
 	// Verify file ownership
 	file, err := h.fileSvc.GetByID(fileID)
@@ -283,8 +295,14 @@ func (h *ShareHandler) ListByFile(c *fiber.Ctx) error {
 
 func (h *ShareHandler) Deactivate(c *fiber.Ctx) error {
 	shareID := c.Params("id")
-	userID := c.Locals("user_id").(string)
-	isGuest := c.Locals("is_guest").(bool)
+	userID, ok := c.Locals("user_id").(string)
+	if !ok || userID == "" {
+		return response.Unauthorized(c, "authentication required")
+	}
+	isGuest, ok := c.Locals("is_guest").(bool)
+	if !ok {
+		return response.Unauthorized(c, "authentication required")
+	}
 
 	if err := h.shareSvc.Deactivate(shareID, userID, isGuest); err != nil {
 		if strings.Contains(err.Error(), "unauthorized") {

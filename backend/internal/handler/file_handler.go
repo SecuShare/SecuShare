@@ -23,8 +23,14 @@ func NewFileHandler(fileSvc *service.FileService) *FileHandler {
 }
 
 func (h *FileHandler) Upload(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(string)
-	isGuest := c.Locals("is_guest").(bool)
+	userID, ok := c.Locals("user_id").(string)
+	if !ok || userID == "" {
+		return response.Unauthorized(c, "authentication required")
+	}
+	isGuest, ok := c.Locals("is_guest").(bool)
+	if !ok {
+		return response.Unauthorized(c, "authentication required")
+	}
 
 	// Get form file
 	fileHeader, err := c.FormFile("file")
@@ -121,8 +127,14 @@ func (h *FileHandler) Upload(c *fiber.Ctx) error {
 }
 
 func (h *FileHandler) List(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(string)
-	isGuest := c.Locals("is_guest").(bool)
+	userID, ok := c.Locals("user_id").(string)
+	if !ok || userID == "" {
+		return response.Unauthorized(c, "authentication required")
+	}
+	isGuest, ok := c.Locals("is_guest").(bool)
+	if !ok {
+		return response.Unauthorized(c, "authentication required")
+	}
 
 	var files interface{}
 	var err error
@@ -141,8 +153,14 @@ func (h *FileHandler) List(c *fiber.Ctx) error {
 }
 
 func (h *FileHandler) Delete(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(string)
-	isGuest := c.Locals("is_guest").(bool)
+	userID, ok := c.Locals("user_id").(string)
+	if !ok || userID == "" {
+		return response.Unauthorized(c, "authentication required")
+	}
+	isGuest, ok := c.Locals("is_guest").(bool)
+	if !ok {
+		return response.Unauthorized(c, "authentication required")
+	}
 	fileID := c.Params("id")
 
 	if fileID == "" {
@@ -165,8 +183,14 @@ func (h *FileHandler) Delete(c *fiber.Ctx) error {
 }
 
 func (h *FileHandler) Download(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(string)
-	isGuest := c.Locals("is_guest").(bool)
+	userID, ok := c.Locals("user_id").(string)
+	if !ok || userID == "" {
+		return response.Unauthorized(c, "authentication required")
+	}
+	isGuest, ok := c.Locals("is_guest").(bool)
+	if !ok {
+		return response.Unauthorized(c, "authentication required")
+	}
 	fileID := c.Params("id")
 
 	file, err := h.fileSvc.GetByID(fileID)

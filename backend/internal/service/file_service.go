@@ -146,13 +146,14 @@ func (s *FileService) Upload(req *UploadRequest) (*models.File, error) {
 	filePath := filepath.Join(s.storagePath, encryptedFilename)
 
 	// Ensure storage directory exists
-	if err := os.MkdirAll(s.storagePath, 0755); err != nil {
+	if err := os.MkdirAll(s.storagePath, 0750); err != nil {
 		releaseQuota()
 		return nil, err
 	}
 
 	// Write encrypted file to disk
-	file, err := os.Create(filePath)
+	// #nosec G304 -- filePath is built from trusted storagePath and a server-generated UUID filename.
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		releaseQuota()
 		return nil, err
@@ -161,8 +162,11 @@ func (s *FileService) Upload(req *UploadRequest) (*models.File, error) {
 
 	written, err := io.Copy(file, req.EncryptedData)
 	if err != nil {
-		os.Remove(filePath)
+		removeErr := removeFileIfExists(filePath)
 		releaseQuota()
+		if removeErr != nil {
+			return nil, fmt.Errorf("write encrypted file: %w (cleanup failed: %v)", err, removeErr)
+		}
 		return nil, err
 	}
 
@@ -193,12 +197,15 @@ func (s *FileService) Upload(req *UploadRequest) (*models.File, error) {
 	}
 
 	if err := s.fileRepo.Create(fileRecord); err != nil {
-		os.Remove(filePath)
+		removeErr := removeFileIfExists(filePath)
 		// Release exact written amount since we already adjusted
 		if isGuest {
 			s.guestRepo.ReleaseStorage(ownerID, written)
 		} else if ownerID != "" {
 			s.userRepo.ReleaseStorage(ownerID, written)
+		}
+		if removeErr != nil {
+			return nil, fmt.Errorf("persist file metadata: %w (cleanup failed: %v)", err, removeErr)
 		}
 		return nil, err
 	}
@@ -272,7 +279,9 @@ func (s *FileService) Delete(id string, ownerID string, isGuest bool) error {
 
 	// Remove file from disk (best-effort; orphaned files cleaned up by background job)
 	filePath := s.GetFilePath(file)
-	os.Remove(filePath)
+	if err := removeFileIfExists(filePath); err != nil {
+		return fmt.Errorf("remove file blob: %w", err)
+	}
 
 	return nil
 }
@@ -362,7 +371,16 @@ func (s *FileService) DeleteAsAdmin(fileID string) error {
 	}
 
 	filePath := s.GetFilePath(file)
-	os.Remove(filePath)
+	if err := removeFileIfExists(filePath); err != nil {
+		return fmt.Errorf("remove file blob: %w", err)
+	}
 
+	return nil
+}
+
+func removeFileIfExists(path string) error {
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
 	return nil
 }

@@ -67,6 +67,7 @@ type Claims struct {
 }
 
 const (
+	opaqueEnvPath           = ".env"
 	verificationCodeLength  = 6
 	verificationCodeTTL     = 10 * time.Minute
 	verificationResendDelay = 60 * time.Second
@@ -101,11 +102,13 @@ func NewAuthService(
 			PublicKey:  publicKey,
 			OPRFSeed:   oprfSeed,
 		}
-		setupJSON, _ := json.Marshal(setup)
+		setupJSON, err := json.Marshal(setup)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode OPAQUE_SERVER_SETUP: %w", err)
+		}
 		encoded := base64.StdEncoding.EncodeToString(setupJSON)
 
-		envPath := ".env"
-		if err := appendOPAQUESetupToEnv(envPath, encoded); err != nil {
+		if err := appendOPAQUESetupToEnv(encoded); err != nil {
 			logger.Warn().Err(err).Msg("Failed to auto-persist OPAQUE_SERVER_SETUP to .env. Login will break on restart.")
 		} else {
 			logger.Info().Msg("OPAQUE_SERVER_SETUP auto-generated and persisted to .env for development.")
@@ -169,11 +172,12 @@ func (s *AuthService) trace(msg string, fields map[string]string) {
 	e.Msg("opaque-debug")
 }
 
-func appendOPAQUESetupToEnv(envPath, encodedSetup string) error {
-	content, err := os.ReadFile(envPath)
+func appendOPAQUESetupToEnv(encodedSetup string) error {
+	// #nosec G304 -- fixed application-controlled path used for local development bootstrap.
+	content, err := os.ReadFile(opaqueEnvPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return os.WriteFile(envPath, []byte("OPAQUE_SERVER_SETUP="+encodedSetup+"\n"), 0644)
+			return os.WriteFile(opaqueEnvPath, []byte("OPAQUE_SERVER_SETUP="+encodedSetup+"\n"), 0600)
 		}
 		return err
 	}
@@ -193,10 +197,11 @@ func appendOPAQUESetupToEnv(envPath, encodedSetup string) error {
 			return nil
 		}
 		lines[existingIdx] = "OPAQUE_SERVER_SETUP=" + encodedSetup
-		return os.WriteFile(envPath, []byte(strings.Join(lines, "\n")), 0644)
+		return os.WriteFile(opaqueEnvPath, []byte(strings.Join(lines, "\n")), 0600)
 	}
 
-	f, err := os.OpenFile(envPath, os.O_APPEND|os.O_WRONLY, 0644)
+	// #nosec G304 -- fixed application-controlled path used for local development bootstrap.
+	f, err := os.OpenFile(opaqueEnvPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		return err
 	}
@@ -400,18 +405,24 @@ func (s *AuthService) VerifyRegistrationCode(email, code string) (*models.User, 
 
 	now := time.Now()
 	if now.After(pending.ExpiresAt) {
-		_ = s.pendingRepo.DeleteByEmail(email)
+		if err := s.pendingRepo.DeleteByEmail(email); err != nil {
+			logger.Warn().Err(err).Str("email", email).Msg("Failed to delete expired pending registration")
+		}
 		return nil, "", errors.New("verification code expired")
 	}
 
 	if pending.Attempts >= verificationMaxAttempts {
-		_ = s.pendingRepo.DeleteByEmail(email)
+		if err := s.pendingRepo.DeleteByEmail(email); err != nil {
+			logger.Warn().Err(err).Str("email", email).Msg("Failed to delete locked pending registration")
+		}
 		return nil, "", errors.New("too many verification attempts")
 	}
 
 	expected := s.hashVerificationCode(email, code)
 	if subtle.ConstantTimeCompare([]byte(expected), []byte(pending.VerificationCodeHash)) != 1 {
-		_ = s.pendingRepo.UpdateAttempts(email, pending.Attempts+1)
+		if err := s.pendingRepo.UpdateAttempts(email, pending.Attempts+1); err != nil {
+			logger.Warn().Err(err).Str("email", email).Msg("Failed to increment pending registration attempts")
+		}
 		return nil, "", errors.New("invalid verification code")
 	}
 
@@ -420,7 +431,9 @@ func (s *AuthService) VerifyRegistrationCode(email, code string) (*models.User, 
 		return nil, "", err
 	}
 
-	_ = s.pendingRepo.DeleteByEmail(email)
+	if err := s.pendingRepo.DeleteByEmail(email); err != nil {
+		logger.Warn().Err(err).Str("email", email).Msg("Failed to cleanup pending registration after success")
+	}
 	return user, token, nil
 }
 
@@ -624,7 +637,10 @@ func (s *AuthService) LoginFinish(loginID string, ke3Bytes []byte) (*models.User
 		return nil, "", errors.New("invalid or expired login session")
 	}
 
-	state := raw.(*loginState)
+	state, ok := raw.(*loginState)
+	if !ok {
+		return nil, "", errors.New("invalid login session state")
+	}
 	if time.Now().After(state.expires) {
 		return nil, "", errors.New("login session expired")
 	}

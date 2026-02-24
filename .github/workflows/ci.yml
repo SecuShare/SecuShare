@@ -183,11 +183,16 @@ jobs:
 
       - name: Build application
         run: npm run build
+        env:
+          VITE_API_URL: /api/v1
 
   # Security scanning
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
 
@@ -201,12 +206,11 @@ jobs:
 
       - name: Run Gosec Security Scanner
         run: |
-          "$(go env GOPATH)/bin/gosec" ./backend/...
+          "$(go env GOPATH)/bin/gosec" ./...
 
       - name: Run npm audit
-        run: |
-          cd frontend
-          npm audit --omit=dev --audit-level=high
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
 
   # Docker build test
   docker-build:
