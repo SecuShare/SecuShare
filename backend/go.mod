@@ -11,7 +11,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.19
 	github.com/prometheus/client_golang v1.18.0
 	github.com/prometheus/common v0.45.0
-	github.com/rs/zerolog v1.32.0
+	github.com/rs/zerolog v1.34.0
 	golang.org/x/crypto v0.35.0
 )
 
