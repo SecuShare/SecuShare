@@ -1,0 +1,39 @@
+# Build artifacts
+server
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test files
+*_test.go
+*.test
+
+# Development files
+.env
+.env.*
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Storage (will be mounted as volume)
+storage/
+
+# Database (will be mounted as volume)
+*.db
+*.sqlite
+*.sqlite3

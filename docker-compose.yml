@@ -1,0 +1,92 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: secushare-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    environment:
+      - SERVER_BIND_ADDRESS=0.0.0.0
+      - SERVER_PORT=8080
+      - DATABASE_PATH=/app/data/secushare.db
+      - STORAGE_PATH=/app/storage
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET environment variable is required}
+      # Required in production. Optional in development.
+      - OPAQUE_SERVER_SETUP=${OPAQUE_SERVER_SETUP:-}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - ALLOW_ORIGINS=${ALLOW_ORIGINS:?ALLOW_ORIGINS environment variable is required}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_FROM=${SMTP_FROM:-no-reply@secushare.local}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      # Include your reverse proxy container subnet(s) when running behind compose proxying.
+      - TRUSTED_PROXIES=${TRUSTED_PROXIES:-127.0.0.1,::1,172.16.0.0/12}
+      - GUEST_DURATION_HOURS=${GUEST_DURATION_HOURS:-24}
+      # Leave empty by default so backend picks environment-specific default.
+      - METRICS_ENABLED=${METRICS_ENABLED:-}
+      - METRICS_TOKEN=${METRICS_TOKEN:-}
+    volumes:
+      - secushare-data:/app/data
+      - secushare-storage:/app/storage
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - secushare-network
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Keep same-origin API path so frontend nginx can proxy /api/* to backend.
+        - VITE_API_URL=${VITE_API_URL:-/api/v1}
+    container_name: secushare-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    networks:
+      - secushare-network
+    stop_grace_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+volumes:
+  secushare-data:
+    driver: local
+  secushare-storage:
+    driver: local
+
+networks:
+  secushare-network:
+    driver: bridge

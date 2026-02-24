@@ -1,0 +1,42 @@
+[Unit]
+Description=SecuShare - Secure File Sharing Service
+After=network.target
+
+[Service]
+Type=simple
+User=secushare
+Group=secushare
+WorkingDirectory=/opt/secushare/backend
+ExecStart=/opt/secushare/backend/secushare-server
+Restart=on-failure
+RestartSec=5s
+
+# Load environment variables from a restricted file (chmod 600)
+EnvironmentFile=/etc/secushare/secushare.env
+
+# Static (non-secret) environment variables
+Environment=SERVER_BIND_ADDRESS=127.0.0.1
+Environment=SERVER_PORT=8080
+Environment=DATABASE_PATH=/opt/secushare/data/secushare.db
+Environment=STORAGE_PATH=/opt/secushare/storage/files
+Environment=ENVIRONMENT=production
+Environment=METRICS_ENABLED=false
+Environment=TRUSTED_PROXIES=127.0.0.1,::1
+
+# Security settings
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+ReadWritePaths=/opt/secushare/data /opt/secushare/storage
+
+# Resource limits
+LimitNOFILE=65535
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target
