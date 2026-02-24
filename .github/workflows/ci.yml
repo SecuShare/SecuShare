@@ -240,3 +240,6 @@ jobs:
 
       - name: Test docker-compose
         run: docker compose config
+        env:
+          JWT_SECRET: ci-dummy-jwt-secret-not-used-for-runtime
+          ALLOW_ORIGINS: http://localhost:3000
