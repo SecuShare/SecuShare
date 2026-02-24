@@ -7,7 +7,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.3
 	github.com/gofiber/fiber/v2 v2.51.0
 	github.com/golang-jwt/jwt/v5 v5.2.0
-	github.com/google/uuid v1.5.0
+	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.19
 	github.com/prometheus/client_golang v1.18.0
 	github.com/prometheus/common v0.45.0
