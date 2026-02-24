@@ -15,7 +15,7 @@
   "dependencies": {
     "@serenity-kit/opaque": "^1.1.0",
     "@types/react-router-dom": "^5.3.3",
-    "lucide-react": "^0.568.0",
+    "lucide-react": "^0.575.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-dropzone": "^15.0.0",
