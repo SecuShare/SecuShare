@@ -1,6 +1,6 @@
 module github.com/SecuShare/SecuShare/backend
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/bytemare/opaque v0.10.0
@@ -12,7 +12,7 @@ require (
 	github.com/prometheus/client_golang v1.18.0
 	github.com/prometheus/common v0.45.0
 	github.com/rs/zerolog v1.32.0
-	golang.org/x/crypto v0.35.0
+	golang.org/x/crypto v0.48.0
 )
 
 require (
@@ -37,7 +37,7 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.51.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
-	golang.org/x/net v0.21.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/net v0.49.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 )
