@@ -3,7 +3,7 @@ export interface ParsedAllowedEmails {
   invalid: string[];
 }
 
-const allowedEmailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+const allowedEmailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
 export function parseAllowedEmails(raw: string): ParsedAllowedEmails {
   const parts = raw

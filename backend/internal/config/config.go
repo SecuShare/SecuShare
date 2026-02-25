@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"os"
 	"strconv"
@@ -52,8 +54,10 @@ func Load() *Config {
 		defaultSecret = "dev-secret-change-in-production"
 	}
 	defaultDownloadCodeHMACSecret := ""
-	if !isProd {
-		defaultDownloadCodeHMACSecret = "dev-download-code-hmac-secret-change-in-production"
+	jwtSecret := strings.TrimSpace(getEnv("JWT_SECRET", defaultSecret))
+	downloadCodeHMACSecret := strings.TrimSpace(getEnv("DOWNLOAD_CODE_HMAC_SECRET", defaultDownloadCodeHMACSecret))
+	if !isProd && downloadCodeHMACSecret == "" {
+		downloadCodeHMACSecret = deriveDevDownloadCodeHMACSecret(jwtSecret)
 	}
 	defaultBindAddress := "0.0.0.0"
 	if isProd {
@@ -78,8 +82,8 @@ func Load() *Config {
 			Path: getEnv("STORAGE_PATH", "./storage/files"),
 		},
 		Auth: AuthConfig{
-			JWTSecret:              getEnv("JWT_SECRET", defaultSecret),
-			DownloadCodeHMACSecret: getEnv("DOWNLOAD_CODE_HMAC_SECRET", defaultDownloadCodeHMACSecret),
+			JWTSecret:              jwtSecret,
+			DownloadCodeHMACSecret: downloadCodeHMACSecret,
 			GuestDuration:          getEnvIntAny(24, "GUEST_DURATION_HOURS", "GUEST_DURATION"),
 			OPAQUEServerSetup:      getEnv("OPAQUE_SERVER_SETUP", ""),
 		},
@@ -88,6 +92,11 @@ func Load() *Config {
 			MetricsToken:   strings.TrimSpace(getEnv("METRICS_TOKEN", "")),
 		},
 	}
+}
+
+func deriveDevDownloadCodeHMACSecret(jwtSecret string) string {
+	sum := sha256.Sum256([]byte("secushare-dev-download-code:" + jwtSecret))
+	return hex.EncodeToString(sum[:])
 }
 
 // Validate checks that the configuration is valid for the current environment.

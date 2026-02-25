@@ -435,7 +435,10 @@ func sendSMTPMailWithTimeout(
 	defer c.Close()
 
 	if ok, _ := c.Extension("STARTTLS"); ok {
-		if err := c.StartTLS(&tls.Config{ServerName: host}); err != nil {
+		if err := c.StartTLS(&tls.Config{
+			ServerName: host,
+			MinVersion: tls.VersionTLS12,
+		}); err != nil {
 			return err
 		}
 	}
@@ -486,6 +489,38 @@ func (s *ShareService) cleanupPendingDownloadVerificationAfterSendFailure(
 			Str("share_id", shareID).
 			Str("email", email).
 			Msg("Failed to cleanup pending download verification after email send failure")
+	}
+}
+
+func (s *ShareService) cleanupPendingDownloadVerificationIfExpired(
+	shareID, email string,
+	now time.Time,
+) {
+	if cleanupErr := s.shareRepo.DeletePendingDownloadVerificationIfExpired(shareID, email, now); cleanupErr != nil {
+		logger.Warn().
+			Err(cleanupErr).
+			Str("component", "share_download_verification").
+			Str("share_id", shareID).
+			Str("email", email).
+			Msg("Failed to cleanup expired pending download verification")
+	}
+}
+
+func (s *ShareService) cleanupPendingDownloadVerificationIfAttemptsAtLeast(
+	shareID, email string,
+	minAttempts int,
+) {
+	if cleanupErr := s.shareRepo.DeletePendingDownloadVerificationIfAttemptsAtLeast(
+		shareID,
+		email,
+		minAttempts,
+	); cleanupErr != nil {
+		logger.Warn().
+			Err(cleanupErr).
+			Str("component", "share_download_verification").
+			Str("share_id", shareID).
+			Str("email", email).
+			Msg("Failed to cleanup exhausted pending download verification")
 	}
 }
 
@@ -658,12 +693,12 @@ func (s *ShareService) consumeDownloadVerificationCode(shareID string, requester
 	}
 
 	if now.After(pending.ExpiresAt) {
-		_ = s.shareRepo.DeletePendingDownloadVerificationIfExpired(shareID, email, now)
+		s.cleanupPendingDownloadVerificationIfExpired(shareID, email, now)
 		return ErrInvalidVerificationCode
 	}
 
 	if pending.Attempts >= shareVerificationMaxAttempts {
-		_ = s.shareRepo.DeletePendingDownloadVerificationIfAttemptsAtLeast(
+		s.cleanupPendingDownloadVerificationIfAttemptsAtLeast(
 			shareID,
 			email,
 			shareVerificationMaxAttempts,
@@ -682,7 +717,7 @@ func (s *ShareService) consumeDownloadVerificationCode(shareID string, requester
 		return wrapDownloadVerificationValidationError(err)
 	}
 	if incremented {
-		_ = s.shareRepo.DeletePendingDownloadVerificationIfAttemptsAtLeast(
+		s.cleanupPendingDownloadVerificationIfAttemptsAtLeast(
 			shareID,
 			email,
 			shareVerificationMaxAttempts,

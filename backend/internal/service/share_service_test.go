@@ -23,6 +23,17 @@ type shareServiceTestEnv struct {
 }
 
 func setupShareServiceTest(t *testing.T) (*shareServiceTestEnv, func()) {
+	return setupShareServiceTestWithWorkerState(t, true)
+}
+
+func setupShareServiceTestWithoutWorkers(t *testing.T) (*shareServiceTestEnv, func()) {
+	return setupShareServiceTestWithWorkerState(t, false)
+}
+
+func setupShareServiceTestWithWorkerState(
+	t *testing.T,
+	startEmailWorkers bool,
+) (*shareServiceTestEnv, func()) {
 	t.Helper()
 
 	db, cfg, cleanup := testutil.SetupTest(t)
@@ -38,6 +49,11 @@ func setupShareServiceTest(t *testing.T) (*shareServiceTestEnv, func()) {
 			DownloadCodeHMACSecret: "share-service-download-code-secret",
 		},
 	})
+	if !startEmailWorkers {
+		shareSvc.Stop()
+		shareSvc.downloadVerificationEmailWorkerStop = make(chan struct{})
+		shareSvc.downloadVerificationEmailStopOnce = sync.Once{}
+	}
 
 	userID := "share-test-user"
 	if err := userRepo.Create(&models.User{
@@ -357,7 +373,7 @@ func TestShareService_RequestDownloadVerificationCode_ResendDelayDoesNotRotateCo
 }
 
 func TestShareService_RequestDownloadVerificationCode_ConcurrentRotateQueuesSingleEmail(t *testing.T) {
-	env, cleanup := setupShareServiceTest(t)
+	env, cleanup := setupShareServiceTestWithoutWorkers(t)
 	defer cleanup()
 
 	email := "allowed@example.com"
@@ -571,7 +587,7 @@ func TestShareService_RequestDownloadVerificationCode_AsyncFailureCleanupTargets
 }
 
 func TestShareService_DownloadVerificationEmailWorker_DropsStaleQueuedJob(t *testing.T) {
-	env, cleanup := setupShareServiceTest(t)
+	env, cleanup := setupShareServiceTestWithoutWorkers(t)
 	defer cleanup()
 
 	email := "allowed@example.com"
@@ -625,7 +641,7 @@ func TestShareService_DownloadVerificationEmailWorker_DropsStaleQueuedJob(t *tes
 }
 
 func TestShareService_DownloadVerificationEmailWorker_SendsCurrentQueuedJob(t *testing.T) {
-	env, cleanup := setupShareServiceTest(t)
+	env, cleanup := setupShareServiceTestWithoutWorkers(t)
 	defer cleanup()
 
 	email := "allowed@example.com"
@@ -679,7 +695,7 @@ func TestShareService_DownloadVerificationEmailWorker_SendsCurrentQueuedJob(t *t
 }
 
 func TestShareService_RequestDownloadVerificationCode_QueueFullCleansPending(t *testing.T) {
-	env, cleanup := setupShareServiceTest(t)
+	env, cleanup := setupShareServiceTestWithoutWorkers(t)
 	defer cleanup()
 
 	email := "allowed@example.com"

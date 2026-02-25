@@ -15,7 +15,7 @@ func NewShareRepository(db *sql.DB) *ShareRepository {
 	return &ShareRepository{db: db}
 }
 
-func (r *ShareRepository) Create(share *models.Share, allowedEmails []string) error {
+func (r *ShareRepository) Create(share *models.Share, allowedEmails []string) (err error) {
 	var isActive int
 	if share.IsActive {
 		isActive = 1
@@ -29,7 +29,11 @@ func (r *ShareRepository) Create(share *models.Share, allowedEmails []string) er
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone && err == nil {
+			err = rollbackErr
+		}
+	}()
 
 	if _, err := tx.Exec(`
 		INSERT INTO shares (id, file_id, password_hash, max_downloads, download_count, requires_email_verification, expires_at, created_at, is_active)
@@ -55,7 +59,11 @@ func (r *ShareRepository) Create(share *models.Share, allowedEmails []string) er
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (r *ShareRepository) GetByID(id string) (*models.Share, error) {

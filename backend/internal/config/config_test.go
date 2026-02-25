@@ -84,3 +84,35 @@ func TestValidate_ProductionRejectsSharedJWTAndDownloadCodeSecrets(t *testing.T)
 		t.Fatalf("expected dedicated secret validation error, got: %v", err)
 	}
 }
+
+func TestLoad_NonProductionDerivesDownloadCodeHMACSecretWhenMissing(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "development")
+	t.Setenv("JWT_SECRET", "dev-jwt-secret")
+	t.Setenv("DOWNLOAD_CODE_HMAC_SECRET", "")
+
+	cfg := Load()
+
+	if cfg.Auth.JWTSecret != "dev-jwt-secret" {
+		t.Fatalf("expected JWT secret from env, got %q", cfg.Auth.JWTSecret)
+	}
+	if cfg.Auth.DownloadCodeHMACSecret == "" {
+		t.Fatal("expected derived download code secret in non-production")
+	}
+	if cfg.Auth.DownloadCodeHMACSecret == cfg.Auth.JWTSecret {
+		t.Fatal("expected derived download code secret to differ from JWT secret")
+	}
+	if cfg.Auth.DownloadCodeHMACSecret != deriveDevDownloadCodeHMACSecret(cfg.Auth.JWTSecret) {
+		t.Fatal("expected derived download code secret to match derivation function")
+	}
+}
+
+func TestLoad_ProductionDoesNotDeriveDownloadCodeHMACSecret(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "production")
+	t.Setenv("JWT_SECRET", strings.Repeat("x", 32))
+	t.Setenv("DOWNLOAD_CODE_HMAC_SECRET", "")
+
+	cfg := Load()
+	if cfg.Auth.DownloadCodeHMACSecret != "" {
+		t.Fatalf("expected empty download code secret in production when unset, got %q", cfg.Auth.DownloadCodeHMACSecret)
+	}
+}
