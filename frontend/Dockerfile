@@ -22,11 +22,18 @@ RUN npm run build
 # Runtime stage with nginx (unprivileged)
 FROM nginxinc/nginx-unprivileged:alpine
 
+# Apply security updates for runtime OS packages.
+USER root
+RUN apk add --no-cache --upgrade libpng
+
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built files from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Drop privileges for runtime.
+USER 101
 
 # Expose unprivileged port
 EXPOSE 8080
