@@ -45,7 +45,7 @@ A secure, end-to-end encrypted file sharing web application. Files are encrypted
 | Backend | Go 1.21+ + Fiber framework |
 | Database | SQLite 3 |
 | Encryption | Web Crypto API (AES-256-GCM) |
-| Authentication | OPAQUE PAKE + JWT session tokens |
+| Authentication | OPAQUE PAKE + JWT-backed sessions (`auth_token` httpOnly cookie; Bearer supported) |
 | Password Handling | OPAQUE (account auth), bcrypt (share passwords), PBKDF2 (client-side key wrapping) |
 
 ---
@@ -660,7 +660,7 @@ Response 200:
 Response 401:
 {
   "success": false,
-  "error": "invalid verification code"
+  "error": "invalid or expired verification code"
 }
 ```
 
@@ -701,25 +701,44 @@ Response 200:
 #### Get Current User
 ```http
 GET /api/v1/auth/me
+```
+
+In browser flows, authentication is provided by the secure `auth_token` cookie.
+API clients may alternatively send:
+
+```http
 Authorization: Bearer <token>
+```
+
+#### Logout
+```http
+POST /api/v1/auth/logout
+X-CSRF-Token: <csrf_token>
 ```
 
 #### CSRF-Protected Endpoints
 
-After successful authentication (`/auth/login`, `/auth/register/verify`, or `/auth/guest`), the API:
+After successful authentication (`/auth/login`, `/auth/register/verify`, `/auth/guest`, or `/setup/complete`), the API:
 
+- sets `auth_token` as an `httpOnly`, `Secure`, `SameSite=Strict` cookie
 - sets a `csrf_token` cookie
-- returns the same token in the JSON response as `csrf_token`
+- returns the same CSRF value in the JSON response as `csrf_token`
 
-For authenticated state-changing requests, send both:
+For state-changing requests from browser clients, send:
+
+```http
+X-CSRF-Token: <csrf_token>
+```
+
+The browser sends `auth_token` automatically. For non-browser API clients, Bearer auth is still supported via:
 
 ```http
 Authorization: Bearer <token>
-X-CSRF-Token: <csrf_token>
 ```
 
 CSRF is required for:
 
+- `POST /api/v1/auth/logout`
 - `POST /api/v1/files/`
 - `DELETE /api/v1/files/:id`
 - `POST /api/v1/shares/`
@@ -770,7 +789,7 @@ Response 403 (if already completed):
 
 ### Admin Endpoints
 
-All admin endpoints require `Authorization: Bearer <token>` from an admin user.
+All admin endpoints require an authenticated admin session (`auth_token` cookie or `Authorization: Bearer <token>`).
 
 #### Get Settings
 ```http

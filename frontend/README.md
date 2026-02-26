@@ -53,7 +53,8 @@ On first launch (fresh database), all routes redirect to `/setup` where the init
 
 ## Security Notes
 
-- Access tokens are stored in `sessionStorage` and cleared on logout.
+- Authentication uses a secure `httpOnly` `auth_token` cookie (not browser storage).
+- The frontend calls `/auth/logout` and clears local non-auth session data on logout.
 - CSRF tokens are sent for state-changing requests.
 - File encryption/decryption is done in the browser using Web Crypto (AES-GCM).
 - Admin routes are guarded client-side (`AdminRoute` component) and server-side (`AdminMiddleware`).
