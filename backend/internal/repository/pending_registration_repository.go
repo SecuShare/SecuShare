@@ -50,13 +50,24 @@ func (r *PendingRegistrationRepository) GetByEmail(email string) (*models.Pendin
 	return p, nil
 }
 
-func (r *PendingRegistrationRepository) UpdateAttempts(email string, attempts int) error {
-	_, err := r.db.Exec(`
+// IncrementAttempts atomically increments the attempt counter for the given
+// email only if the current count is below maxAttempts. It returns true if the
+// increment succeeded (i.e. the caller is within the attempt budget) or false
+// if the limit has been reached.
+func (r *PendingRegistrationRepository) IncrementAttempts(email string, maxAttempts int) (bool, error) {
+	result, err := r.db.Exec(`
 		UPDATE pending_registrations
-		SET attempts = ?
-		WHERE email = ? COLLATE NOCASE
-	`, attempts, email)
-	return err
+		SET attempts = attempts + 1
+		WHERE email = ? COLLATE NOCASE AND attempts < ?
+	`, email, maxAttempts)
+	if err != nil {
+		return false, err
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
 
 func (r *PendingRegistrationRepository) DeleteByEmail(email string) error {

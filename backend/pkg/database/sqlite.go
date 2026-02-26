@@ -59,6 +59,12 @@ func Initialize(dbPath string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
 	}
 
+	// Wait up to 5 seconds when the database is locked by another writer
+	// instead of failing immediately with SQLITE_BUSY.
+	if _, err := db.Exec("PRAGMA busy_timeout = 5000"); err != nil {
+		return nil, fmt.Errorf("failed to set busy_timeout: %w", err)
+	}
+
 	return db, nil
 }
 

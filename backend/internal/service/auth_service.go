@@ -412,17 +412,22 @@ func (s *AuthService) VerifyRegistrationCode(email, code string) (*models.User, 
 		return nil, "", errors.New(verificationFailureMsg)
 	}
 
-	if pending.Attempts >= verificationMaxAttempts {
-		if err := s.pendingRepo.DeleteByEmail(email); err != nil {
-			logger.Warn().Err(err).Str("email", email).Msg("Failed to delete locked pending registration")
-		}
-		return nil, "", errors.New("too many verification attempts")
-	}
-
 	expected := s.hashVerificationCode(email, code)
 	if subtle.ConstantTimeCompare([]byte(expected), []byte(pending.VerificationCodeHash)) != 1 {
-		if err := s.pendingRepo.UpdateAttempts(email, pending.Attempts+1); err != nil {
+		// Atomically increment the attempt counter and check the limit in
+		// a single UPDATE … WHERE attempts < max.  This prevents concurrent
+		// requests from both reading the same counter value and bypassing
+		// the brute-force limit.
+		allowed, err := s.pendingRepo.IncrementAttempts(email, verificationMaxAttempts)
+		if err != nil {
 			logger.Warn().Err(err).Str("email", email).Msg("Failed to increment pending registration attempts")
+		}
+		if !allowed {
+			// Limit reached — clean up the pending record.
+			if err := s.pendingRepo.DeleteByEmail(email); err != nil {
+				logger.Warn().Err(err).Str("email", email).Msg("Failed to delete locked pending registration")
+			}
+			return nil, "", errors.New("too many verification attempts")
 		}
 		return nil, "", errors.New(verificationFailureMsg)
 	}
