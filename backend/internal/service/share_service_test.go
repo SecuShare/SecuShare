@@ -694,7 +694,7 @@ func TestShareService_DownloadVerificationEmailWorker_SendsCurrentQueuedJob(t *t
 	}
 }
 
-func TestShareService_RequestDownloadVerificationCode_QueueFullCleansPending(t *testing.T) {
+func TestShareService_RequestDownloadVerificationCode_QueueFullUsesOverflowDispatch(t *testing.T) {
 	env, cleanup := setupShareServiceTestWithoutWorkers(t)
 	defer cleanup()
 
@@ -707,7 +707,7 @@ func TestShareService_RequestDownloadVerificationCode_QueueFullCleansPending(t *
 		t.Fatalf("create restricted share: %v", err)
 	}
 
-	// Replace queue with a full local buffer to force the bounded async path to drop work.
+	// Replace queue with a full local buffer to force overflow dispatch.
 	env.shareSvc.downloadVerificationEmailJobs = make(chan downloadVerificationEmailJob, 1)
 	env.shareSvc.downloadVerificationEmailJobs <- downloadVerificationEmailJob{
 		shareID:              "saturated-share",
@@ -716,12 +716,27 @@ func TestShareService_RequestDownloadVerificationCode_QueueFullCleansPending(t *
 		verificationCodeHash: "saturated-hash",
 	}
 
+	sent := make(chan struct{}, 1)
+	env.shareSvc.sendDownloadVerificationEmailFn = func(_ string, _ string) error {
+		select {
+		case sent <- struct{}{}:
+		default:
+		}
+		return nil
+	}
+
 	if err := env.shareSvc.RequestDownloadVerificationCode(share.ID, email); err != nil {
 		t.Fatalf("expected generic success when queue is full, got %v", err)
 	}
 
-	if _, err := env.shareRepo.GetPendingDownloadVerification(share.ID, email); !errors.Is(err, sql.ErrNoRows) {
-		t.Fatalf("expected pending verification to be deleted when queue is full, got %v", err)
+	select {
+	case <-sent:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected overflow dispatch to send verification email")
+	}
+
+	if _, err := env.shareRepo.GetPendingDownloadVerification(share.ID, email); err != nil {
+		t.Fatalf("expected pending verification to remain after successful overflow dispatch, got %v", err)
 	}
 }
 

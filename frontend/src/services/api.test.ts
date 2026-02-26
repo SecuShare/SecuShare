@@ -1,15 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockFetch = vi.fn();
-const mockSessionStorage = {
-  getItem: vi.fn(),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-  clear: vi.fn(),
-};
 
 vi.stubGlobal('fetch', mockFetch);
-vi.stubGlobal('sessionStorage', mockSessionStorage);
 
 function successResponse(data: unknown): Response {
   return {
@@ -22,7 +15,6 @@ function successResponse(data: unknown): Response {
 describe('APIService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSessionStorage.getItem.mockReturnValue(null);
     document.cookie = '';
   });
 
@@ -30,17 +22,14 @@ describe('APIService', () => {
     vi.resetModules();
   });
 
-  it('stores and reads token from sessionStorage', async () => {
+  it('stores and reads token in memory', async () => {
     const { api } = await import('./api');
 
     api.setToken('test-token');
-    expect(mockSessionStorage.setItem).toHaveBeenCalledWith('token', 'test-token');
+    expect(api.getToken()).toBe('test-token');
 
     api.setToken(null);
-    expect(mockSessionStorage.removeItem).toHaveBeenCalledWith('token');
-
-    mockSessionStorage.getItem.mockReturnValue('stored-token');
-    expect(api.getToken()).toBe('stored-token');
+    expect(api.getToken()).toBeNull();
   });
 
   it('calls register init endpoint', async () => {
@@ -211,7 +200,6 @@ describe('APIService', () => {
   });
 
   it('sends auth header on authenticated GET requests', async () => {
-    mockSessionStorage.getItem.mockReturnValue('stored-token');
     mockFetch.mockResolvedValueOnce(successResponse({
       id: 'u1',
       email: 'test@example.com',
@@ -221,6 +209,7 @@ describe('APIService', () => {
     }));
 
     const { api } = await import('./api');
+    api.setToken('stored-token');
     const result = await api.getCurrentUser();
 
     expect(result.success).toBe(true);

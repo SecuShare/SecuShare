@@ -5,6 +5,7 @@ import (
 	"net/mail"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/SecuShare/SecuShare/backend/internal/service"
 	"github.com/SecuShare/SecuShare/backend/pkg/logger"
@@ -15,6 +16,8 @@ import (
 // emailRegex provides additional validation beyond net/mail
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 var verificationCodeRegex = regexp.MustCompile(`^\d{6}$`)
+
+const authTokenCookieName = "auth_token"
 
 func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
@@ -56,6 +59,31 @@ func setCSRFCookie(c *fiber.Ctx) string {
 		MaxAge:   86400, // 24 hours
 	})
 	return token
+}
+
+func setAuthCookie(c *fiber.Ctx, token string) {
+	c.Cookie(&fiber.Cookie{
+		Name:     authTokenCookieName,
+		Value:    token,
+		HTTPOnly: true,
+		Secure:   true,
+		SameSite: "Strict",
+		Path:     "/",
+		MaxAge:   86400, // 24 hours; server still enforces JWT expiry.
+	})
+}
+
+func clearAuthCookie(c *fiber.Ctx) {
+	c.Cookie(&fiber.Cookie{
+		Name:     authTokenCookieName,
+		Value:    "",
+		HTTPOnly: true,
+		Secure:   true,
+		SameSite: "Strict",
+		Path:     "/",
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
+	})
 }
 
 type AuthResponse struct {
@@ -195,6 +223,7 @@ func (h *AuthHandler) VerifyRegistration(c *fiber.Ctx) error {
 	}
 
 	csrfToken := setCSRFCookie(c)
+	setAuthCookie(c, token)
 
 	logger.Audit("user_registered", user.ID, map[string]string{
 		"email": req.Email,
@@ -244,6 +273,7 @@ func (h *AuthHandler) LoginPassword(c *fiber.Ctx) error {
 	})
 
 	csrfToken := setCSRFCookie(c)
+	setAuthCookie(c, token)
 
 	return response.Success(c, AuthResponse{
 		Token:     token,
@@ -324,6 +354,7 @@ func (h *AuthHandler) LoginFinish(c *fiber.Ctx) error {
 	})
 
 	csrfToken := setCSRFCookie(c)
+	setAuthCookie(c, token)
 
 	return response.Success(c, AuthResponse{
 		Token:     token,
@@ -339,6 +370,7 @@ func (h *AuthHandler) CreateGuestSession(c *fiber.Ctx) error {
 	}
 
 	csrfToken := setCSRFCookie(c)
+	setAuthCookie(c, token)
 
 	return response.Success(c, AuthResponse{
 		Token:     token,
@@ -351,6 +383,22 @@ func (h *AuthHandler) CreateGuestSession(c *fiber.Ctx) error {
 			"is_guest":            true,
 		},
 	})
+}
+
+func (h *AuthHandler) Logout(c *fiber.Ctx) error {
+	clearAuthCookie(c)
+	c.Cookie(&fiber.Cookie{
+		Name:     "csrf_token",
+		Value:    "",
+		HTTPOnly: false,
+		Secure:   true,
+		SameSite: "Strict",
+		Path:     "/",
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
+	})
+
+	return response.Success(c, map[string]string{"message": "logged out"})
 }
 
 func (h *AuthHandler) GetMe(c *fiber.Ctx) error {

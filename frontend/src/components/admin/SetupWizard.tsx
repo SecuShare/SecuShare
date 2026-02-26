@@ -30,7 +30,6 @@ export function SetupWizard() {
     try {
       const res = await api.completeSetup(email, password);
       if (res.success && res.data) {
-        api.setToken(res.data.token);
         useAuthStore.setState({
           user: res.data.user,
           isAuthenticated: true,

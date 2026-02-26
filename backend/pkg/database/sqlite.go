@@ -29,8 +29,24 @@ func Initialize(dbPath string) (*sql.DB, error) {
 	db.SetConnMaxLifetime(5 * time.Minute)
 	db.SetConnMaxIdleTime(10 * time.Minute)
 
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+	const maxPingAttempts = 5
+	pingDelay := 200 * time.Millisecond
+	var pingErr error
+	for attempt := 1; attempt <= maxPingAttempts; attempt++ {
+		pingErr = db.Ping()
+		if pingErr == nil {
+			break
+		}
+		if attempt < maxPingAttempts {
+			time.Sleep(pingDelay)
+			if pingDelay < 2*time.Second {
+				pingDelay *= 2
+			}
+		}
+	}
+	if pingErr != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to ping database after %d attempts: %w", maxPingAttempts, pingErr)
 	}
 
 	// Enable foreign key enforcement (SQLite has this off by default)

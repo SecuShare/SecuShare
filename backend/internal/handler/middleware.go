@@ -58,17 +58,21 @@ func RequestIDMiddleware() fiber.Handler {
 
 func AuthMiddleware(authSvc *service.AuthService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		authHeader := c.Get("Authorization")
-		if authHeader == "" {
-			return response.Unauthorized(c, "missing authorization header")
+		var token string
+		authHeader := strings.TrimSpace(c.Get("Authorization"))
+		if authHeader != "" {
+			parts := strings.Fields(authHeader)
+			if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") || strings.TrimSpace(parts[1]) == "" {
+				return response.Unauthorized(c, "invalid authorization header format")
+			}
+			token = parts[1]
+		} else {
+			token = strings.TrimSpace(c.Cookies(authTokenCookieName))
+			if token == "" {
+				return response.Unauthorized(c, "missing authorization token")
+			}
 		}
 
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-			return response.Unauthorized(c, "invalid authorization header format")
-		}
-
-		token := parts[1]
 		claims, err := authSvc.ValidateToken(token)
 		if err != nil {
 			RecordAuthFailure("invalid_token")
@@ -97,21 +101,25 @@ func AuthMiddleware(authSvc *service.AuthService) fiber.Handler {
 
 func OptionalAuthMiddleware(authSvc *service.AuthService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		authHeader := c.Get("Authorization")
-		if authHeader == "" {
-			c.Locals("user_id", "")
-			c.Locals("is_guest", false)
-			return c.Next()
+		var token string
+		authHeader := strings.TrimSpace(c.Get("Authorization"))
+		if authHeader != "" {
+			parts := strings.Fields(authHeader)
+			if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") || strings.TrimSpace(parts[1]) == "" {
+				c.Locals("user_id", "")
+				c.Locals("is_guest", false)
+				return c.Next()
+			}
+			token = parts[1]
+		} else {
+			token = strings.TrimSpace(c.Cookies(authTokenCookieName))
+			if token == "" {
+				c.Locals("user_id", "")
+				c.Locals("is_guest", false)
+				return c.Next()
+			}
 		}
 
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-			c.Locals("user_id", "")
-			c.Locals("is_guest", false)
-			return c.Next()
-		}
-
-		token := parts[1]
 		claims, err := authSvc.ValidateToken(token)
 		if err != nil {
 			c.Locals("user_id", "")

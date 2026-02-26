@@ -29,7 +29,7 @@ interface AuthState {
   register: (email: string, password: string) => Promise<string>;
   verifyRegistration: (email: string, verificationCode: string) => Promise<void>;
   loginAsGuest: () => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
 }
 
@@ -47,7 +47,6 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     try {
       const data = await opaqueLogin(email, password, id);
-      api.setToken(data.token);
       set({ user: data.user, isAuthenticated: true });
       await useFileStore.getState().fetchStorageInfo();
       authTrace(id, 'store.login.success', {
@@ -67,7 +66,6 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   verifyRegistration: async (email: string, verificationCode: string) => {
     const data = await verifyRegistrationCode(email, verificationCode);
-    api.setToken(data.token);
     set({ user: data.user, isAuthenticated: true });
     await useFileStore.getState().fetchStorageInfo();
   },
@@ -77,28 +75,28 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (!response.success || !response.data) {
       throw new Error(response.error || 'Failed to create guest session');
     }
-    api.setToken(response.data.token);
     set({ user: response.data.user, isAuthenticated: true });
     await useFileStore.getState().fetchStorageInfo();
   },
 
-  logout: () => {
-    api.setToken(null);
-    api.setCSRFToken(null);
-    sessionStorage.removeItem(SHARE_URLS_STORAGE_KEY);
-    sessionStorage.removeItem(FILE_KEYS_STORAGE_KEY);
-    useFileStore.getState().reset();
-    set({ user: null, isAuthenticated: false });
+  logout: async () => {
+    try {
+      await api.logout();
+    } catch {
+      // Even if logout request fails, clear local auth state.
+    } finally {
+      api.setToken(null);
+      api.setCSRFToken(null);
+      sessionStorage.removeItem(SHARE_URLS_STORAGE_KEY);
+      sessionStorage.removeItem(FILE_KEYS_STORAGE_KEY);
+      useFileStore.getState().reset();
+      set({ user: null, isAuthenticated: false });
+    }
   },
 
   checkAuth: async () => {
     set({ isLoading: true });
     try {
-      if (!api.getToken()) {
-        set({ user: null, isAuthenticated: false, isLoading: false });
-        return;
-      }
-
       const response = await api.getCurrentUser();
       if (response.success && response.data) {
         set({ user: response.data, isAuthenticated: true });

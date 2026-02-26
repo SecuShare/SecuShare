@@ -37,6 +37,8 @@ type ShareService struct {
 	sendDownloadVerificationEmailFn     func(email, code string) error
 	downloadVerificationEmailWorkerStop chan struct{}
 	downloadVerificationEmailWorkerWG   sync.WaitGroup
+	downloadVerificationEmailOverflowWG sync.WaitGroup
+	downloadVerificationOverflowSlots   chan struct{}
 	downloadVerificationEmailStopOnce   sync.Once
 }
 
@@ -49,6 +51,7 @@ const (
 
 	shareVerificationEmailWorkerCount = 4
 	shareVerificationEmailQueueSize   = 128
+	shareVerificationEmailOverflowMax = 32
 	shareVerificationEmailSendTTL     = 10 * time.Second
 )
 
@@ -112,6 +115,7 @@ func NewShareService(
 			shareVerificationEmailQueueSize,
 		),
 		downloadVerificationSendTTL:         shareVerificationEmailSendTTL,
+		downloadVerificationOverflowSlots:   make(chan struct{}, shareVerificationEmailOverflowMax),
 		downloadVerificationEmailWorkerStop: make(chan struct{}),
 	}
 	svc.startDownloadVerificationEmailWorkers()
@@ -137,24 +141,7 @@ func (s *ShareService) downloadVerificationEmailWorker() {
 			if !ok {
 				return
 			}
-			if !s.shouldSendDownloadVerificationEmailJob(job) {
-				continue
-			}
-
-			if err := s.sendDownloadVerificationEmailWithOverride(job.email, job.code); err != nil {
-				logger.Warn().
-					Err(err).
-					Str("component", "share_download_verification").
-					Str("share_id", job.shareID).
-					Str("email", job.email).
-					Msg("Failed to send download verification email")
-
-				s.cleanupPendingDownloadVerificationAfterSendFailure(
-					job.shareID,
-					job.email,
-					job.verificationCodeHash,
-				)
-			}
+			s.processDownloadVerificationEmailJob(job)
 		}
 	}
 }
@@ -164,6 +151,7 @@ func (s *ShareService) Stop() {
 	s.downloadVerificationEmailStopOnce.Do(func() {
 		close(s.downloadVerificationEmailWorkerStop)
 		s.downloadVerificationEmailWorkerWG.Wait()
+		s.downloadVerificationEmailOverflowWG.Wait()
 	})
 }
 
@@ -191,6 +179,27 @@ func (s *ShareService) shouldSendDownloadVerificationEmailJob(job downloadVerifi
 	}
 
 	return pending.VerificationCodeHash == job.verificationCodeHash
+}
+
+func (s *ShareService) processDownloadVerificationEmailJob(job downloadVerificationEmailJob) {
+	if !s.shouldSendDownloadVerificationEmailJob(job) {
+		return
+	}
+
+	if err := s.sendDownloadVerificationEmailWithOverride(job.email, job.code); err != nil {
+		logger.Warn().
+			Err(err).
+			Str("component", "share_download_verification").
+			Str("share_id", job.shareID).
+			Str("email", job.email).
+			Msg("Failed to send download verification email")
+
+		s.cleanupPendingDownloadVerificationAfterSendFailure(
+			job.shareID,
+			job.email,
+			job.verificationCodeHash,
+		)
+	}
 }
 
 type CreateShareRequest struct {
@@ -566,12 +575,22 @@ func (s *ShareService) sendDownloadVerificationEmailAsync(
 		s.cleanupPendingDownloadVerificationAfterSendFailure(shareID, email, verificationCodeHash)
 	case s.downloadVerificationEmailJobs <- job:
 	default:
-		logger.Warn().
-			Str("component", "share_download_verification").
-			Str("share_id", shareID).
-			Str("email", email).
-			Msg("Download verification email queue is full; dropping send request")
-		s.cleanupPendingDownloadVerificationAfterSendFailure(shareID, email, verificationCodeHash)
+		select {
+		case s.downloadVerificationOverflowSlots <- struct{}{}:
+			s.downloadVerificationEmailOverflowWG.Add(1)
+			go func() {
+				defer s.downloadVerificationEmailOverflowWG.Done()
+				defer func() { <-s.downloadVerificationOverflowSlots }()
+				s.processDownloadVerificationEmailJob(job)
+			}()
+		default:
+			logger.Warn().
+				Str("component", "share_download_verification").
+				Str("share_id", shareID).
+				Str("email", email).
+				Msg("Download verification email queue and overflow workers are saturated; dropping send request")
+			s.cleanupPendingDownloadVerificationAfterSendFailure(shareID, email, verificationCodeHash)
+		}
 	}
 }
 

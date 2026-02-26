@@ -85,6 +85,9 @@ func main() {
 	adminSvc := service.NewAdminService(settingsRepo, userRepo)
 	authSvc.SetSettingsProvider(adminSvc)
 	fileSvc.SetSettingsProvider(adminSvc)
+	if err := fileSvc.ReconcileStorageUsage(); err != nil {
+		logger.Warn().Err(err).Msg("Failed to reconcile storage usage at startup")
+	}
 
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authSvc)
@@ -146,6 +149,7 @@ func main() {
 	auth.Post("/login/init", jsonBodyLimit, authRateLimiter.Middleware(), authHandler.LoginInit)
 	auth.Post("/login/finish", jsonBodyLimit, authRateLimiter.Middleware(), authHandler.LoginFinish)
 	auth.Post("/guest", jsonBodyLimit, authRateLimiter.Middleware(), authHandler.CreateGuestSession)
+	auth.Post("/logout", jsonBodyLimit, handler.CSRFMiddleware(), authHandler.Logout)
 	auth.Get("/me", handler.AuthMiddleware(authSvc), authHandler.GetMe)
 	auth.Get("/storage/quota", handler.AuthMiddleware(authSvc), authHandler.GetStorageInfo)
 
@@ -226,6 +230,9 @@ func main() {
 				}
 				if err := shareRepo.DeleteExpiredPendingDownloadVerifications(now); err != nil {
 					logger.Error().Err(err).Msg("Failed to clean up expired pending share download verifications")
+				}
+				if err := fileSvc.ReconcileStorageUsage(); err != nil {
+					logger.Error().Err(err).Msg("Failed to reconcile storage usage")
 				}
 				logger.Info().Msg("Expired data cleanup completed")
 			case <-cleanupStop:

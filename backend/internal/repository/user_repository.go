@@ -86,6 +86,20 @@ func (r *UserRepository) ReleaseStorage(id string, size int64) {
 	}
 }
 
+// ReconcileStorageUsage recalculates storage_used_bytes from authoritative file
+// metadata, repairing leaked quota reservations after unexpected crashes.
+func (r *UserRepository) ReconcileStorageUsage() error {
+	_, err := r.db.Exec(`
+		UPDATE users
+		SET storage_used_bytes = COALESCE((
+			SELECT SUM(f.encrypted_size_bytes)
+			FROM files f
+			WHERE f.owner_id = users.id
+		), 0)
+	`)
+	return err
+}
+
 func (r *UserRepository) GetStorageInfo(id string) (*models.StorageInfo, error) {
 	info := &models.StorageInfo{}
 	err := r.db.QueryRow(`

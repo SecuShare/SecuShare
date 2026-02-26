@@ -73,6 +73,7 @@ const (
 	verificationResendDelay = 60 * time.Second
 	verificationMaxAttempts = 5
 	loginStateTTL           = 5 * time.Minute
+	verificationFailureMsg  = "invalid or expired verification code"
 )
 
 func canonicalizeEmail(email string) string {
@@ -398,7 +399,7 @@ func (s *AuthService) VerifyRegistrationCode(email, code string) (*models.User, 
 	pending, err := s.pendingRepo.GetByEmail(email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, "", errors.New("invalid or expired verification code")
+			return nil, "", errors.New(verificationFailureMsg)
 		}
 		return nil, "", fmt.Errorf("failed to read pending registration: %w", err)
 	}
@@ -408,7 +409,7 @@ func (s *AuthService) VerifyRegistrationCode(email, code string) (*models.User, 
 		if err := s.pendingRepo.DeleteByEmail(email); err != nil {
 			logger.Warn().Err(err).Str("email", email).Msg("Failed to delete expired pending registration")
 		}
-		return nil, "", errors.New("verification code expired")
+		return nil, "", errors.New(verificationFailureMsg)
 	}
 
 	if pending.Attempts >= verificationMaxAttempts {
@@ -423,7 +424,7 @@ func (s *AuthService) VerifyRegistrationCode(email, code string) (*models.User, 
 		if err := s.pendingRepo.UpdateAttempts(email, pending.Attempts+1); err != nil {
 			logger.Warn().Err(err).Str("email", email).Msg("Failed to increment pending registration attempts")
 		}
-		return nil, "", errors.New("invalid verification code")
+		return nil, "", errors.New(verificationFailureMsg)
 	}
 
 	user, token, err := s.registerFinishWithVerification(email, pending.RegistrationRecord, true)

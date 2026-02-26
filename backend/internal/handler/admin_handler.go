@@ -103,6 +103,7 @@ func (h *AdminHandler) CompleteSetup(c *fiber.Ctx) error {
 	user.IsEmailVerified = true
 
 	csrfToken := setCSRFCookie(c)
+	setAuthCookie(c, token)
 
 	logger.Audit("setup_completed", user.ID, map[string]string{
 		"email": req.Email,
@@ -231,6 +232,12 @@ func (h *AdminHandler) TriggerCleanup(c *fiber.Ctx) error {
 		results["pending_share_download_verifications"] = "error: " + err.Error()
 	} else {
 		results["pending_share_download_verifications"] = "cleaned"
+	}
+
+	if err := h.fileSvc.ReconcileStorageUsage(); err != nil {
+		results["storage_reconciliation"] = "error: " + err.Error()
+	} else {
+		results["storage_reconciliation"] = "cleaned"
 	}
 
 	userID := localUserID(c)

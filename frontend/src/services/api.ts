@@ -30,17 +30,9 @@ class APIService {
 
   setToken(token: string | null) {
     this.token = token;
-    if (token) {
-      sessionStorage.setItem('token', token);
-    } else {
-      sessionStorage.removeItem('token');
-    }
   }
 
   getToken(): string | null {
-    if (!this.token) {
-      this.token = sessionStorage.getItem('token');
-    }
     return this.token;
   }
 
@@ -89,8 +81,9 @@ class APIService {
       ...(options.headers as Record<string, string>),
     };
 
-    if (this.getToken()) {
-      headers['Authorization'] = `Bearer ${this.getToken()}`;
+    const token = this.getToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     // Include CSRF token for state-changing requests
@@ -259,6 +252,16 @@ class APIService {
     if (result.success && result.data?.csrf_token) {
       this.setCSRFToken(result.data.csrf_token);
     }
+    return result;
+  }
+
+  async logout(): Promise<APIResponse<{ message: string }>> {
+    const result = await this.request<{ message: string }>('/auth/logout', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    this.setToken(null);
+    this.setCSRFToken(null);
     return result;
   }
 

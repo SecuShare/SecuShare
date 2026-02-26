@@ -98,6 +98,18 @@ func (s *FileService) SetSettingsProvider(sp SettingsProvider) {
 	s.settings = sp
 }
 
+// ReconcileStorageUsage repairs quota drift by recalculating usage from file
+// metadata. This is used at startup and periodic maintenance.
+func (s *FileService) ReconcileStorageUsage() error {
+	if err := s.userRepo.ReconcileStorageUsage(); err != nil {
+		return err
+	}
+	if err := s.guestRepo.ReconcileStorageUsage(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *FileService) Upload(req *UploadRequest) (*models.File, error) {
 	// Check max file size from settings
 	if s.settings != nil {

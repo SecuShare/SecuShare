@@ -272,8 +272,8 @@ func TestAuthHandler_VerifyRegistration_FailsOnWrongCode(t *testing.T) {
 	if verifyParsed.Success {
 		t.Fatal("expected success=false for wrong verification code")
 	}
-	if verifyParsed.Error != "invalid verification code" {
-		t.Fatalf("expected invalid verification code error, got %q", verifyParsed.Error)
+	if verifyParsed.Error != "invalid or expired verification code" {
+		t.Fatalf("expected invalid or expired verification code error, got %q", verifyParsed.Error)
 	}
 }
 

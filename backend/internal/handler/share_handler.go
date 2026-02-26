@@ -17,8 +17,9 @@ import (
 
 // sharePasswordAttempts tracks failed password attempts per share+IP key.
 type sharePasswordAttempts struct {
-	mu       sync.Mutex
-	attempts map[string]*attemptInfo
+	mu        sync.Mutex
+	attempts  map[string]*attemptInfo
+	lastPrune time.Time
 }
 
 type attemptInfo struct {
@@ -33,16 +34,23 @@ var shareAttempts = &sharePasswordAttempts{
 const maxSharePasswordAttempts = 5
 const sharePasswordLockDuration = 15 * time.Minute
 const maxAllowedShareEmails = 50
+const sharePasswordAttemptsPruneInterval = 1 * time.Minute
+const maxSharePasswordAttemptEntries = 10000
 
 func (s *sharePasswordAttempts) check(key string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	now := time.Now()
+	if now.Sub(s.lastPrune) >= sharePasswordAttemptsPruneInterval {
+		s.prune(now)
+		s.lastPrune = now
+	}
 	info, exists := s.attempts[key]
 	if !exists {
 		return true
 	}
 	if info.count >= maxSharePasswordAttempts {
-		if time.Since(info.lockedAt) < sharePasswordLockDuration {
+		if now.Sub(info.lockedAt) < sharePasswordLockDuration {
 			return false
 		}
 		// Reset after lock duration
@@ -55,19 +63,49 @@ func (s *sharePasswordAttempts) check(key string) bool {
 func (s *sharePasswordAttempts) recordFailure(key string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	now := time.Now()
+	if len(s.attempts) >= maxSharePasswordAttemptEntries {
+		s.prune(now)
+	}
 	info, exists := s.attempts[key]
 	if !exists {
-		s.attempts[key] = &attemptInfo{count: 1, lockedAt: time.Now()}
+		s.attempts[key] = &attemptInfo{count: 1, lockedAt: now}
 		return
 	}
 	info.count++
-	info.lockedAt = time.Now()
+	info.lockedAt = now
 }
 
 func (s *sharePasswordAttempts) reset(key string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.attempts, key)
+}
+
+func (s *sharePasswordAttempts) prune(now time.Time) {
+	cutoff := now.Add(-sharePasswordLockDuration)
+	for key, info := range s.attempts {
+		if info.lockedAt.Before(cutoff) {
+			delete(s.attempts, key)
+		}
+	}
+
+	for len(s.attempts) > maxSharePasswordAttemptEntries {
+		var oldestKey string
+		var oldestTime time.Time
+		first := true
+		for key, info := range s.attempts {
+			if first || info.lockedAt.Before(oldestTime) {
+				oldestKey = key
+				oldestTime = info.lockedAt
+				first = false
+			}
+		}
+		if oldestKey == "" {
+			return
+		}
+		delete(s.attempts, oldestKey)
+	}
 }
 
 // mimeToDisplayName returns a generic display name based on MIME type,
@@ -173,6 +211,9 @@ func (h *ShareHandler) Create(c *fiber.Ctx) error {
 		t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
 		if err != nil {
 			return response.BadRequest(c, "invalid expires_at format")
+		}
+		if !t.After(time.Now()) {
+			return response.BadRequest(c, "expires_at must be in the future")
 		}
 		expiresAt = &t
 	}

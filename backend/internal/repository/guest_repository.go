@@ -131,6 +131,20 @@ func (r *GuestSessionRepository) ReleaseStorage(id string, size int64) {
 	}
 }
 
+// ReconcileStorageUsage recalculates storage_used_bytes from authoritative file
+// metadata, repairing leaked quota reservations after unexpected crashes.
+func (r *GuestSessionRepository) ReconcileStorageUsage() error {
+	_, err := r.db.Exec(`
+		UPDATE guest_sessions
+		SET storage_used_bytes = COALESCE((
+			SELECT SUM(f.encrypted_size_bytes)
+			FROM files f
+			WHERE f.guest_session_id = guest_sessions.id
+		), 0)
+	`)
+	return err
+}
+
 func (r *GuestSessionRepository) DeleteExpired() error {
 	_, err := r.db.Exec(`DELETE FROM guest_sessions WHERE expires_at < ?`, time.Now())
 	return err
