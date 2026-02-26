@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -153,6 +154,15 @@ func (s *FileService) Upload(req *UploadRequest) (*models.File, error) {
 		}
 	}
 
+	// Verify the upload looks like encrypted data before writing anything
+	// to disk.  This catches clients that skip client-side encryption.
+	validatedReader, err := validateEncryptedUpload(req.EncryptedData)
+	if err != nil {
+		releaseQuota()
+		return nil, err
+	}
+	req.EncryptedData = validatedReader
+
 	fileID := uuid.New().String()
 	encryptedFilename := fileID + ".enc"
 	filePath := filepath.Join(s.storagePath, encryptedFilename)
@@ -225,23 +235,36 @@ func (s *FileService) Upload(req *UploadRequest) (*models.File, error) {
 	return fileRecord, nil
 }
 
-// ValidateMIMEType checks if the detected MIME type matches the claimed type
-// and if it's in the allowed list
-func ValidateMIMEType(data []byte, claimedType string) error {
-	detectedType := mimetype.Detect(data)
-	if detectedType == nil {
-		return errors.New("unable to detect MIME type")
+// sniffSize is the number of leading bytes read for MIME-type detection.
+// 3072 bytes is sufficient for the mimetype library to identify all
+// supported formats.
+const sniffSize = 3072
+
+// validateEncryptedUpload reads the first bytes of the upload stream and
+// verifies the data looks like ciphertext (i.e. opaque binary that the
+// mimetype library cannot identify as a known format).  If the data is
+// recognisable as a plaintext file type the upload is rejected, which
+// catches clients that bypass client-side encryption.
+//
+// Returns a new reader that replays the sniffed prefix followed by the
+// remaining data so the caller can continue reading the full stream.
+func validateEncryptedUpload(data io.Reader) (io.Reader, error) {
+	buf := make([]byte, sniffSize)
+	n, err := io.ReadAtLeast(data, buf, 1)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return nil, fmt.Errorf("read upload header for MIME sniff: %w", err)
+	}
+	buf = buf[:n]
+
+	detected := mimetype.Detect(buf)
+	if detected.String() != "application/octet-stream" {
+		return nil, fmt.Errorf(
+			"upload rejected: data does not appear to be encrypted (detected %s)",
+			detected.String(),
+		)
 	}
 
-	// Check if the claimed type is in the allowed list
-	if !AllowedMIMETypes[claimedType] {
-		// Also check if the detected type is in the allowed list (for aliases)
-		if !AllowedMIMETypes[detectedType.String()] {
-			return errors.New("MIME type not allowed")
-		}
-	}
-
-	return nil
+	return io.MultiReader(bytes.NewReader(buf), data), nil
 }
 
 func (s *FileService) GetByID(id string) (*models.File, error) {

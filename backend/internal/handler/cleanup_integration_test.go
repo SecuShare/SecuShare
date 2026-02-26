@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
@@ -55,7 +56,12 @@ func TestGuestCleanup_RemovesBlobAndInvalidatesGuestAccess(t *testing.T) {
 		t.Fatalf("CreateGuestSession: %v", err)
 	}
 
-	blob := []byte("encrypted-blob-data")
+	// Use random bytes so the MIME sniff sees application/octet-stream
+	// (matching what real AES-GCM ciphertext looks like).
+	blob := make([]byte, 64)
+	if _, err := rand.Read(blob); err != nil {
+		t.Fatalf("rand.Read: %v", err)
+	}
 	ivBase64 := base64.StdEncoding.EncodeToString(make([]byte, 12))
 	checksum := strings.Repeat("a", 64)
 
