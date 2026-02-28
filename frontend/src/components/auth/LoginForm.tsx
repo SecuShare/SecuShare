@@ -1,18 +1,43 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store';
 import { authTrace, authTraceError, emailHint, newAuthTraceId } from '../../services/authTrace';
+import { api } from '../../services/api';
+import { formatFileSize } from '../../services/cryptoService';
 import { useToast } from '../common/Toast';
 import { Shield } from 'lucide-react';
 
 export function LoginForm() {
+  const defaultGuestMaxFileSize = 10 * 1024 * 1024;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [guestMaxFileSize, setGuestMaxFileSize] = useState(defaultGuestMaxFileSize);
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
   const loginAsGuest = useAuthStore((s) => s.loginAsGuest);
   const showToast = useToast();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPublicSettings = async () => {
+      try {
+        const response = await api.getPublicSettings();
+        const size = response.data?.max_file_size_guest;
+        if (!cancelled && response.success && typeof size === 'number' && size > 0) {
+          setGuestMaxFileSize(size);
+        }
+      } catch {
+        // Keep fallback default if settings cannot be loaded.
+      }
+    };
+
+    void loadPublicSettings();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,7 +139,7 @@ export function LoginForm() {
               disabled={isLoading}
               className="mt-4 w-full border border-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
             >
-              Guest User (10MB limit)
+              Guest User ({formatFileSize(guestMaxFileSize)} limit)
             </button>
           </div>
 
