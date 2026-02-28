@@ -18,6 +18,7 @@ var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-
 var verificationCodeRegex = regexp.MustCompile(`^\d{6}$`)
 
 const authTokenCookieName = "auth_token"
+const registrationAcknowledgementMessage = "If the email is eligible, a verification code has been sent."
 
 func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
@@ -167,22 +168,31 @@ func (h *AuthHandler) RegisterPassword(c *fiber.Ctx) error {
 
 	err := h.authSvc.RequestRegistrationVerification(req.Email, req.Password)
 	if err != nil {
-		if err.Error() == "email already registered" {
-			return response.Error(c, fiber.StatusConflict, "email already registered")
+		switch err.Error() {
+		case "email already registered", "please wait before requesting another verification code":
+			// Intentionally return a generic success response to avoid account enumeration.
+			logger.Audit("registration_request_acknowledged", "", map[string]string{
+				"email":   req.Email,
+				"outcome": "masked",
+			})
+			return response.Success(c, map[string]string{
+				"message": registrationAcknowledgementMessage,
+			})
+		case "registration is not allowed for this email domain":
+			return response.Forbidden(c, err.Error())
 		}
-		if err.Error() == "please wait before requesting another verification code" {
-			return response.Error(c, fiber.StatusTooManyRequests, err.Error())
-		}
+
 		logger.Error().Err(err).Str("email", req.Email).Msg("RegisterPassword failed")
 		return response.InternalError(c, "registration failed")
 	}
 
-	logger.Audit("registration_verification_sent", "", map[string]string{
-		"email": req.Email,
+	logger.Audit("registration_request_acknowledged", "", map[string]string{
+		"email":   req.Email,
+		"outcome": "verification_dispatched",
 	})
 
 	return response.Success(c, map[string]string{
-		"message": "verification code sent to your email",
+		"message": registrationAcknowledgementMessage,
 	})
 }
 
@@ -210,12 +220,13 @@ func (h *AuthHandler) VerifyRegistration(c *fiber.Ctx) error {
 	user, token, err := h.authSvc.VerifyRegistrationCode(req.Email, req.VerificationCode)
 	if err != nil {
 		switch err.Error() {
-		case "invalid verification code", "invalid or expired verification code", "verification code expired":
-			return response.Unauthorized(c, err.Error())
-		case "too many verification attempts":
-			return response.Error(c, fiber.StatusTooManyRequests, err.Error())
-		case "email already registered":
-			return response.Error(c, fiber.StatusConflict, err.Error())
+		case "invalid verification code",
+			"invalid or expired verification code",
+			"verification code expired",
+			"too many verification attempts",
+			"email already registered":
+			// Keep verification failures generic to avoid exposing registration state.
+			return response.Unauthorized(c, "invalid or expired verification code")
 		default:
 			logger.Error().Err(err).Str("email", req.Email).Msg("VerifyRegistration failed")
 			return response.InternalError(c, "verification failed")

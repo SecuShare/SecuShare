@@ -188,12 +188,60 @@ func TestAuthHandler_RegisterPassword_SendsVerificationRequest(t *testing.T) {
 	if err := json.Unmarshal(parsed.Data, &data); err != nil {
 		t.Fatalf("unmarshal register data: %v", err)
 	}
-	if data.Message != "verification code sent to your email" {
+	if data.Message != registrationAcknowledgementMessage {
 		t.Fatalf("unexpected message: %q", data.Message)
 	}
 
 	if _, err := pendingRepo.GetByEmail(email); err != nil {
 		t.Fatalf("expected pending registration to exist: %v", err)
+	}
+}
+
+func TestAuthHandler_RegisterPassword_DoesNotEnumerateExistingEmail(t *testing.T) {
+	app, pendingRepo, jwtSecret, cleanup := newAuthHandlerTestApp(t)
+	defer cleanup()
+
+	email := "already-registered@example.com"
+	password := "Passw0rd!123"
+	code := "654321"
+
+	firstStatus, firstParsed := performJSONRequest(t, app, http.MethodPost, "/api/v1/auth/register", map[string]string{
+		"email":    email,
+		"password": password,
+	})
+	if firstStatus != http.StatusOK || !firstParsed.Success {
+		t.Fatalf("initial register failed: status=%d success=%v error=%q", firstStatus, firstParsed.Success, firstParsed.Error)
+	}
+
+	setPendingVerificationCode(t, pendingRepo, jwtSecret, email, code)
+
+	verifyStatus, verifyParsed := performJSONRequest(t, app, http.MethodPost, "/api/v1/auth/register/verify", map[string]string{
+		"email":             email,
+		"verification_code": code,
+	})
+	if verifyStatus != http.StatusOK || !verifyParsed.Success {
+		t.Fatalf("verification failed: status=%d success=%v error=%q", verifyStatus, verifyParsed.Success, verifyParsed.Error)
+	}
+
+	secondStatus, secondParsed := performJSONRequest(t, app, http.MethodPost, "/api/v1/auth/register", map[string]string{
+		"email":    email,
+		"password": password,
+	})
+	if secondStatus != http.StatusOK {
+		t.Fatalf("expected status=200 for re-register request, got %d", secondStatus)
+	}
+	if !secondParsed.Success {
+		t.Fatalf("expected success=true for re-register request, got error=%q", secondParsed.Error)
+	}
+
+	var data struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(secondParsed.Data, &data); err != nil {
+		t.Fatalf("unmarshal response data: %v", err)
+	}
+	if data.Message != registrationAcknowledgementMessage {
+		t.Fatalf("unexpected message: %q", data.Message)
 	}
 }
 

@@ -127,3 +127,30 @@ func TestGuestSessionRepository_GetIPStorageInfo(t *testing.T) {
 		t.Errorf("Free mismatch: quota=%d used=%d free=%d", info.Quota, info.Used, info.Free)
 	}
 }
+
+func TestGuestSessionRepository_ReserveStorage_RejectsNonPositiveSize(t *testing.T) {
+	db, _, cleanup := testutil.SetupTest(t)
+	defer cleanup()
+
+	repo := NewGuestSessionRepository(db)
+	s := newSession("203.0.113.99")
+	if err := repo.Create(s); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	ok, err := repo.ReserveStorage(s.ID, 0)
+	if err == nil {
+		t.Fatal("expected error for zero-size reservation")
+	}
+	if ok {
+		t.Fatal("expected reservation to fail for zero-size request")
+	}
+
+	ok, err = repo.ReserveStorage(s.ID, -1)
+	if err == nil {
+		t.Fatal("expected error for negative-size reservation")
+	}
+	if ok {
+		t.Fatal("expected reservation to fail for negative-size request")
+	}
+}

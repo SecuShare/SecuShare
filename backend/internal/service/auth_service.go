@@ -67,13 +67,14 @@ type Claims struct {
 }
 
 const (
-	opaqueEnvPath           = ".env"
-	verificationCodeLength  = 6
-	verificationCodeTTL     = 10 * time.Minute
-	verificationResendDelay = 60 * time.Second
-	verificationMaxAttempts = 5
-	loginStateTTL           = 5 * time.Minute
-	verificationFailureMsg  = "invalid or expired verification code"
+	opaqueEnvPath            = ".env"
+	verificationCodeLength   = 6
+	verificationCodeTTL      = 10 * time.Minute
+	verificationResendDelay  = 60 * time.Second
+	verificationMaxAttempts  = 5
+	verificationEmailSendTTL = 10 * time.Second
+	loginStateTTL            = 5 * time.Minute
+	verificationFailureMsg   = "invalid or expired verification code"
 )
 
 func canonicalizeEmail(email string) string {
@@ -331,7 +332,15 @@ func (s *AuthService) sendVerificationEmail(email, code string) error {
 		auth = smtp.PlainAuth("", username, password, host)
 	}
 
-	if err := smtp.SendMail(addr, auth, from, []string{email}, msg); err != nil {
+	if err := sendSMTPMailWithTimeout(
+		addr,
+		host,
+		auth,
+		from,
+		[]string{email},
+		msg,
+		verificationEmailSendTTL,
+	); err != nil {
 		return fmt.Errorf("send verification email: %w", err)
 	}
 

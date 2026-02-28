@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"sync"
 	"time"
 
@@ -84,6 +85,10 @@ func (r *GuestSessionRepository) UpdateStorageUsed(id string, delta int64) error
 // space on the specific session. The mutex ensures the aggregate read and the
 // session write are not interleaved with concurrent requests from the same IP.
 func (r *GuestSessionRepository) ReserveStorage(id string, size int64) (bool, error) {
+	if size <= 0 {
+		return false, errors.New("invalid storage reservation size")
+	}
+
 	r.quotaMu.Lock()
 	defer r.quotaMu.Unlock()
 

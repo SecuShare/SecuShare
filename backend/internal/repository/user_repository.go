@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 
 	"github.com/SecuShare/SecuShare/backend/internal/models"
 )
@@ -65,6 +66,10 @@ func (r *UserRepository) UpdateStorageUsed(id string, delta int64) error {
 
 // ReserveStorage atomically checks quota and reserves space. Returns true if reserved.
 func (r *UserRepository) ReserveStorage(id string, size int64) (bool, error) {
+	if size <= 0 {
+		return false, errors.New("invalid storage reservation size")
+	}
+
 	result, err := r.db.Exec(`
 		UPDATE users SET storage_used_bytes = storage_used_bytes + ?
 		WHERE id = ? AND (storage_quota_bytes - storage_used_bytes) >= ?

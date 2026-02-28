@@ -73,9 +73,18 @@ func (h *FileHandler) Upload(c *fiber.Ctx) error {
 	if err != nil {
 		return response.BadRequest(c, "invalid file_size_bytes")
 	}
+	if fileSize <= 0 {
+		return response.BadRequest(c, "file_size_bytes must be greater than 0")
+	}
 	encryptedSize, err := strconv.ParseInt(encryptedSizeStr, 10, 64)
 	if err != nil {
 		return response.BadRequest(c, "invalid encrypted_size_bytes")
+	}
+	if encryptedSize <= 0 {
+		return response.BadRequest(c, "encrypted_size_bytes must be greater than 0")
+	}
+	if fileHeader.Size > 0 && encryptedSize != fileHeader.Size {
+		return response.BadRequest(c, "encrypted_size_bytes must match uploaded file size")
 	}
 
 	// Open uploaded file

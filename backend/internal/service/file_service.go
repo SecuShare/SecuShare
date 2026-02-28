@@ -112,6 +112,13 @@ func (s *FileService) ReconcileStorageUsage() error {
 }
 
 func (s *FileService) Upload(req *UploadRequest) (*models.File, error) {
+	if req.FileSize <= 0 {
+		return nil, errors.New("file size must be greater than zero")
+	}
+	if req.EncryptedSize <= 0 {
+		return nil, errors.New("encrypted size must be greater than zero")
+	}
+
 	// Check max file size from settings
 	if s.settings != nil {
 		isGuest := req.GuestSessionID != nil
@@ -192,13 +199,33 @@ func (s *FileService) Upload(req *UploadRequest) (*models.File, error) {
 		return nil, err
 	}
 
-	// Adjust reservation if actual written size differs from declared size
 	if written != req.EncryptedSize {
-		diff := req.EncryptedSize - written
-		if isGuest {
-			s.guestRepo.ReleaseStorage(ownerID, diff)
-		} else if ownerID != "" {
-			s.userRepo.ReleaseStorage(ownerID, diff)
+		removeErr := removeFileIfExists(filePath)
+		releaseQuota()
+		if removeErr != nil {
+			return nil, fmt.Errorf(
+				"uploaded encrypted size mismatch (declared=%d, actual=%d): cleanup failed: %v",
+				req.EncryptedSize,
+				written,
+				removeErr,
+			)
+		}
+		return nil, fmt.Errorf(
+			"uploaded encrypted size mismatch (declared=%d, actual=%d)",
+			req.EncryptedSize,
+			written,
+		)
+	}
+
+	if s.settings != nil {
+		maxSize := s.settings.GetMaxFileSize(isGuest)
+		if written > maxSize {
+			removeErr := removeFileIfExists(filePath)
+			releaseQuota()
+			if removeErr != nil {
+				return nil, fmt.Errorf("file exceeds maximum allowed size of %d bytes (cleanup failed: %v)", maxSize, removeErr)
+			}
+			return nil, fmt.Errorf("file exceeds maximum allowed size of %d bytes", maxSize)
 		}
 	}
 
@@ -220,12 +247,7 @@ func (s *FileService) Upload(req *UploadRequest) (*models.File, error) {
 
 	if err := s.fileRepo.Create(fileRecord); err != nil {
 		removeErr := removeFileIfExists(filePath)
-		// Release exact written amount since we already adjusted
-		if isGuest {
-			s.guestRepo.ReleaseStorage(ownerID, written)
-		} else if ownerID != "" {
-			s.userRepo.ReleaseStorage(ownerID, written)
-		}
+		releaseQuota()
 		if removeErr != nil {
 			return nil, fmt.Errorf("persist file metadata: %w (cleanup failed: %v)", err, removeErr)
 		}
