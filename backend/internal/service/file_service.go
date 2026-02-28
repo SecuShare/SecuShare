@@ -243,7 +243,7 @@ const sniffSize = 3072
 // validateEncryptedUpload reads the first bytes of the upload stream and
 // verifies the data looks like ciphertext (i.e. opaque binary that the
 // mimetype library cannot identify as a known format).  If the data is
-// recognisable as a plaintext file type the upload is rejected, which
+// recognizable as a plaintext file type the upload is rejected, which
 // catches clients that bypass client-side encryption.
 //
 // Returns a new reader that replays the sniffed prefix followed by the
