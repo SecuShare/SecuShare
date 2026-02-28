@@ -154,3 +154,71 @@ func TestGuestSessionRepository_ReserveStorage_RejectsNonPositiveSize(t *testing
 		t.Fatal("expected reservation to fail for negative-size request")
 	}
 }
+
+func TestGuestSessionRepository_GetReusableActiveByIP(t *testing.T) {
+	db, _, cleanup := testutil.SetupTest(t)
+	defer cleanup()
+
+	repo := NewGuestSessionRepository(db)
+	ip := "203.0.113.77"
+
+	emptyOld := newSession(ip)
+	emptyOld.CreatedAt = time.Now().Add(-2 * time.Minute)
+	emptyOld.ExpiresAt = time.Now().Add(1 * time.Hour)
+	if err := repo.Create(emptyOld); err != nil {
+		t.Fatalf("create emptyOld: %v", err)
+	}
+
+	used := newSession(ip)
+	used.StorageUsed = 1024
+	used.CreatedAt = time.Now().Add(-1 * time.Minute)
+	used.ExpiresAt = time.Now().Add(1 * time.Hour)
+	if err := repo.Create(used); err != nil {
+		t.Fatalf("create used: %v", err)
+	}
+
+	expired := newSession(ip)
+	expired.ExpiresAt = time.Now().Add(-1 * time.Minute)
+	if err := repo.Create(expired); err != nil {
+		t.Fatalf("create expired: %v", err)
+	}
+
+	reusable, err := repo.GetReusableActiveByIP(ip)
+	if err != nil {
+		t.Fatalf("GetReusableActiveByIP: %v", err)
+	}
+	if reusable.ID != emptyOld.ID {
+		t.Fatalf("expected reusable session %s, got %s", emptyOld.ID, reusable.ID)
+	}
+	if reusable.StorageUsed != 0 {
+		t.Fatalf("expected reusable session to be empty, got storage_used=%d", reusable.StorageUsed)
+	}
+}
+
+func TestGuestSessionRepository_RefreshSession(t *testing.T) {
+	db, _, cleanup := testutil.SetupTest(t)
+	defer cleanup()
+
+	repo := NewGuestSessionRepository(db)
+	s := newSession("203.0.113.88")
+	if err := repo.Create(s); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	newQuota := int64(42 * 1024 * 1024)
+	newExpiry := time.Now().Add(2 * time.Hour)
+	if err := repo.RefreshSession(s.ID, newQuota, newExpiry); err != nil {
+		t.Fatalf("RefreshSession: %v", err)
+	}
+
+	updated, err := repo.GetByID(s.ID)
+	if err != nil {
+		t.Fatalf("GetByID after refresh: %v", err)
+	}
+	if updated.StorageQuota != newQuota {
+		t.Fatalf("expected updated quota %d, got %d", newQuota, updated.StorageQuota)
+	}
+	if updated.ExpiresAt.Before(newExpiry.Add(-2*time.Second)) || updated.ExpiresAt.After(newExpiry.Add(2*time.Second)) {
+		t.Fatalf("expected updated expiry around %s, got %s", newExpiry.Format(time.RFC3339), updated.ExpiresAt.Format(time.RFC3339))
+	}
+}

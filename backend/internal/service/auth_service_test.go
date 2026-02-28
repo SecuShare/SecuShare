@@ -1,6 +1,7 @@
 package service
 
 import (
+	"database/sql"
 	"strings"
 	"testing"
 	"time"
@@ -13,7 +14,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func newTestAuthService(t *testing.T) (*AuthService, func()) {
+func newTestAuthServiceWithDB(t *testing.T) (*AuthService, *sql.DB, func()) {
 	t.Helper()
 	db, _, cleanup := testutil.SetupTest(t)
 	userRepo := repository.NewUserRepository(db)
@@ -31,10 +32,65 @@ func newTestAuthService(t *testing.T) (*AuthService, func()) {
 		cleanup()
 		t.Fatalf("NewAuthService failed: %v", err)
 	}
-	return svc, func() {
+	return svc, db, func() {
 		svc.Stop()
 		cleanup()
 	}
+}
+
+func newTestAuthService(t *testing.T) (*AuthService, func()) {
+	t.Helper()
+	svc, _, cleanup := newTestAuthServiceWithDB(t)
+	return svc, cleanup
+}
+
+type authServiceSettingsStub struct {
+	guestQuotaBytes       int64
+	userQuotaBytes        int64
+	guestMaxFileSizeBytes int64
+	userMaxFileSizeBytes  int64
+	guestDurationHours    int
+}
+
+func (s authServiceSettingsStub) GetDefaultStorageQuota(isGuest bool) int64 {
+	if isGuest {
+		if s.guestQuotaBytes > 0 {
+			return s.guestQuotaBytes
+		}
+		return 10485760
+	}
+	if s.userQuotaBytes > 0 {
+		return s.userQuotaBytes
+	}
+	return 1073741824
+}
+
+func (s authServiceSettingsStub) GetMaxFileSize(isGuest bool) int64 {
+	if isGuest {
+		if s.guestMaxFileSizeBytes > 0 {
+			return s.guestMaxFileSizeBytes
+		}
+		return 10485760
+	}
+	if s.userMaxFileSizeBytes > 0 {
+		return s.userMaxFileSizeBytes
+	}
+	return 104857600
+}
+
+func (s authServiceSettingsStub) GetGuestSessionDurationHours() int {
+	if s.guestDurationHours > 0 {
+		return s.guestDurationHours
+	}
+	return 24
+}
+
+func (s authServiceSettingsStub) IsEmailDomainAllowed(string) bool {
+	return true
+}
+
+func (s authServiceSettingsStub) IsSetupCompleted() bool {
+	return true
 }
 
 // runOPAQUERegistration performs a full OPAQUE registration using the bytemare Go client.
@@ -426,13 +482,12 @@ func TestAuthService_CreateGuestSession(t *testing.T) {
 	}
 }
 
-func TestAuthService_CreateGuestSession_UniqueSessionsPerCall(t *testing.T) {
+func TestAuthService_CreateGuestSession_ReusesEmptySessionPerIP(t *testing.T) {
 	svc, cleanup := newTestAuthService(t)
 	defer cleanup()
 
 	ip := "203.0.113.42"
 
-	// Every call must produce a distinct session so each user has a private file list.
 	session1, _, err := svc.CreateGuestSession(ip)
 	if err != nil {
 		t.Fatalf("First CreateGuestSession failed: %v", err)
@@ -442,7 +497,102 @@ func TestAuthService_CreateGuestSession_UniqueSessionsPerCall(t *testing.T) {
 		t.Fatalf("Second CreateGuestSession failed: %v", err)
 	}
 
+	if session1.ID != session2.ID {
+		t.Errorf("expected empty guest session to be reused for same IP, got %s then %s", session1.ID, session2.ID)
+	}
+}
+
+func TestAuthService_CreateGuestSession_DoesNotReuseSessionWithData(t *testing.T) {
+	svc, cleanup := newTestAuthService(t)
+	defer cleanup()
+
+	ip := "203.0.113.43"
+
+	session1, _, err := svc.CreateGuestSession(ip)
+	if err != nil {
+		t.Fatalf("First CreateGuestSession failed: %v", err)
+	}
+
+	// Mark the session as used so it is no longer eligible for reuse.
+	ok, err := svc.guestRepo.ReserveStorage(session1.ID, 1)
+	if err != nil {
+		t.Fatalf("ReserveStorage failed: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected reservation to succeed")
+	}
+
+	session2, _, err := svc.CreateGuestSession(ip)
+	if err != nil {
+		t.Fatalf("Second CreateGuestSession failed: %v", err)
+	}
+
 	if session1.ID == session2.ID {
-		t.Error("Expected distinct session IDs for separate calls from the same IP")
+		t.Error("expected a new guest session when previous session already has data")
+	}
+}
+
+func TestAuthService_CreateGuestSession_UsesRuntimeSettingsDuration(t *testing.T) {
+	svc, cleanup := newTestAuthService(t)
+	defer cleanup()
+
+	svc.SetSettingsProvider(authServiceSettingsStub{
+		guestDurationHours: 2,
+	})
+
+	now := time.Now()
+	session, token, err := svc.CreateGuestSession("203.0.113.51")
+	if err != nil {
+		t.Fatalf("CreateGuestSession failed: %v", err)
+	}
+
+	expectedMin := now.Add(118 * time.Minute)
+	expectedMax := now.Add(122 * time.Minute)
+	if session.ExpiresAt.Before(expectedMin) || session.ExpiresAt.After(expectedMax) {
+		t.Fatalf(
+			"expected session expiry around 2h from now, got %s (expected between %s and %s)",
+			session.ExpiresAt.Format(time.RFC3339),
+			expectedMin.Format(time.RFC3339),
+			expectedMax.Format(time.RFC3339),
+		)
+	}
+
+	claims, err := svc.ValidateToken(token)
+	if err != nil {
+		t.Fatalf("ValidateToken failed: %v", err)
+	}
+	if claims.ExpiresAt == nil {
+		t.Fatal("expected guest token to include expiration")
+	}
+	if claims.ExpiresAt.Before(expectedMin) || claims.ExpiresAt.After(expectedMax) {
+		t.Fatalf(
+			"expected guest token expiry around 2h from now, got %s (expected between %s and %s)",
+			claims.ExpiresAt.Format(time.RFC3339),
+			expectedMin.Format(time.RFC3339),
+			expectedMax.Format(time.RFC3339),
+		)
+	}
+}
+
+func TestAuthService_LoginInit_ReturnsErrorOnUserLookupFailure(t *testing.T) {
+	svc, db, cleanup := newTestAuthServiceWithDB(t)
+	defer cleanup()
+
+	if err := db.Close(); err != nil {
+		t.Fatalf("close test db: %v", err)
+	}
+
+	client, err := opaque.DefaultConfiguration().Client()
+	if err != nil {
+		t.Fatalf("create opaque client: %v", err)
+	}
+	ke1 := client.LoginInit([]byte("password123"))
+
+	_, _, err = svc.LoginInit("lookup-error@example.com", ke1.Serialize())
+	if err == nil {
+		t.Fatal("expected LoginInit to fail when user lookup errors")
+	}
+	if !strings.Contains(err.Error(), "lookup user") {
+		t.Fatalf("expected lookup error context, got %v", err)
 	}
 }

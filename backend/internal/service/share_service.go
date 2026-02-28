@@ -363,8 +363,7 @@ func (s *ShareService) sendDownloadVerificationEmail(email, code string) error {
 		logger.Info().
 			Str("component", "share_download_verification").
 			Str("email", email).
-			Str("verification_code", strings.TrimSpace(code)).
-			Msg("Download verification code (SMTP_HOST not configured)")
+			Msg("Skipping download verification email: SMTP_HOST not configured")
 		return nil
 	}
 

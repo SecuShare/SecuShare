@@ -3,8 +3,6 @@ export interface ParsedAllowedEmails {
   invalid: string[];
 }
 
-const allowedEmailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-
 export function parseAllowedEmails(raw: string): ParsedAllowedEmails {
   const parts = raw
     .split(/[\n,;]/)
@@ -17,10 +15,6 @@ export function parseAllowedEmails(raw: string): ParsedAllowedEmails {
 
   for (const value of parts) {
     const normalized = value.toLowerCase();
-    if (!allowedEmailRegex.test(normalized)) {
-      invalid.push(value);
-      continue;
-    }
     if (seen.has(normalized)) {
       continue;
     }
@@ -28,5 +22,7 @@ export function parseAllowedEmails(raw: string): ParsedAllowedEmails {
     emails.push(normalized);
   }
 
+  // Keep frontend validation permissive and rely on backend net/mail parsing
+  // as the source of truth to avoid client/server validation drift.
   return { emails, invalid };
 }

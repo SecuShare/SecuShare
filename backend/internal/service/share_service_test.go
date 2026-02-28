@@ -440,7 +440,7 @@ func TestShareService_RequestDownloadVerificationCode_ConcurrentRotateQueuesSing
 	}
 }
 
-func TestShareService_SendDownloadVerificationEmail_NoSMTPInNonProductionLogsFallbackCode(t *testing.T) {
+func TestShareService_SendDownloadVerificationEmail_NoSMTPInNonProductionDoesNotLogCode(t *testing.T) {
 	env, cleanup := setupShareServiceTest(t)
 	defer cleanup()
 
@@ -475,10 +475,10 @@ func TestShareService_SendDownloadVerificationEmail_NoSMTPInNonProductionLogsFal
 	if !strings.Contains(logged, `"email":"`+email+`"`) {
 		t.Fatalf("expected fallback log to include email %q, got logs: %s", email, logged)
 	}
-	if !strings.Contains(logged, `"verification_code":"`+code+`"`) {
-		t.Fatalf("expected fallback log to include verification code %q, got logs: %s", code, logged)
+	if strings.Contains(logged, `"verification_code":"`) {
+		t.Fatalf("expected fallback log to avoid plaintext verification code, got logs: %s", logged)
 	}
-	if !strings.Contains(logged, "Download verification code (SMTP_HOST not configured)") {
+	if !strings.Contains(logged, "Skipping download verification email: SMTP_HOST not configured") {
 		t.Fatalf("expected fallback log message, got logs: %s", logged)
 	}
 }

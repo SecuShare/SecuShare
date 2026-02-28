@@ -38,6 +38,40 @@ func (r *GuestSessionRepository) GetByID(id string) (*models.GuestSession, error
 	return session, nil
 }
 
+// GetReusableActiveByIP returns the latest active empty session for the IP.
+// Empty sessions can be safely reused to reduce guest session table bloat.
+func (r *GuestSessionRepository) GetReusableActiveByIP(ip string) (*models.GuestSession, error) {
+	session := &models.GuestSession{}
+	err := r.db.QueryRow(`
+		SELECT id, storage_quota_bytes, storage_used_bytes, expires_at, created_at, ip_address
+		FROM guest_sessions
+		WHERE ip_address = ? AND expires_at > ? AND storage_used_bytes = 0
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, ip, time.Now()).Scan(
+		&session.ID,
+		&session.StorageQuota,
+		&session.StorageUsed,
+		&session.ExpiresAt,
+		&session.CreatedAt,
+		&session.IPAddress,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+// RefreshSession updates quota and expiry for a reused guest session.
+func (r *GuestSessionRepository) RefreshSession(id string, quota int64, expiresAt time.Time) error {
+	_, err := r.db.Exec(`
+		UPDATE guest_sessions
+		SET storage_quota_bytes = ?, expires_at = ?
+		WHERE id = ?
+	`, quota, expiresAt, id)
+	return err
+}
+
 // GetIPStorageInfo returns aggregate storage usage across all active sessions
 // sharing the same IP as the given session. Used for quota display so the UI
 // reflects the true remaining capacity regardless of how many sessions an IP has.

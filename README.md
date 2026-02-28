@@ -627,16 +627,13 @@ Response 200:
 {
   "success": true,
   "data": {
-    "message": "verification code sent to your email"
+    "message": "If the email is eligible, a verification code has been sent."
   }
 }
-
-Response 409:
-{
-  "success": false,
-  "error": "email already registered"
-}
 ```
+
+This endpoint intentionally returns a generic success acknowledgement for
+existing emails and resend-cooldown cases to reduce account-enumeration signals.
 
 #### Verify Registration Code (Create Account)
 ```http

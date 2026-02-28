@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useAuthStore, useFileStore } from '../../store';
 import { useToast } from '../common/Toast';
@@ -34,6 +34,9 @@ const DEFAULT_SHARE_OPTIONS: ShareOptions = {
   maxDownloads: '',
 };
 
+const defaultGuestMaxFileSize = 10 * 1024 * 1024;
+const defaultUserMaxFileSize = 100 * 1024 * 1024;
+
 const GUEST_EXPIRATION_OPTIONS = [
   { value: '1h', label: '1 Hour' },
   { value: '24h', label: '24 Hours' },
@@ -67,18 +70,46 @@ export function FileUploader() {
   const [copied, setCopied] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [isSkipping, setIsSkipping] = useState(false);
+  const [maxFileSizeGuest, setMaxFileSizeGuest] = useState(defaultGuestMaxFileSize);
+  const [maxFileSizeUser, setMaxFileSizeUser] = useState(defaultUserMaxFileSize);
   const { user } = useAuthStore();
   const { addFile, setFileKey, setShareUrl, removeFile, storageInfo } = useFileStore();
   const showToast = useToast();
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPublicSettings = async () => {
+      try {
+        const response = await api.getPublicSettings();
+        if (!cancelled && response.success && response.data) {
+          if (typeof response.data.max_file_size_guest === 'number' && response.data.max_file_size_guest > 0) {
+            setMaxFileSizeGuest(response.data.max_file_size_guest);
+          }
+          if (typeof response.data.max_file_size_user === 'number' && response.data.max_file_size_user > 0) {
+            setMaxFileSizeUser(response.data.max_file_size_user);
+          }
+        }
+      } catch {
+        // Keep fallback limits when settings cannot be loaded.
+      }
+    };
+
+    void loadPublicSettings();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const uploadFile = async (file: File) => {
-    const maxSize = user?.is_guest ? 10 * 1024 * 1024 : 100 * 1024 * 1024;
+    const maxSize = user?.is_guest ? maxFileSizeGuest : maxFileSizeUser;
     if (file.size > maxSize) {
       showToast(`File too large. Max: ${formatFileSize(maxSize)}`, 'error');
       return;
     }
 
-    const availableSpace = storageInfo?.free ?? (user?.is_guest ? 10 * 1024 * 1024 : 1024 * 1024 * 1024);
+    const fallbackQuota = user?.storage_quota_bytes ?? maxSize;
+    const availableSpace = storageInfo?.free ?? fallbackQuota;
     if (file.size > availableSpace) {
       showToast(`Not enough storage space. Available: ${formatFileSize(availableSpace)}`, 'error');
       return;

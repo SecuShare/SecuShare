@@ -168,7 +168,7 @@ func (r *ShareRepository) IsEmailAllowed(shareID, email string) (bool, error) {
 	err := r.db.QueryRow(`
 		SELECT 1
 		FROM share_allowed_emails
-		WHERE share_id = ? AND email = ? COLLATE NOCASE
+		WHERE share_id = ? AND email = ?
 		LIMIT 1
 	`, shareID, email).Scan(&exists)
 	if err != nil {
@@ -252,7 +252,7 @@ func (r *ShareRepository) GetPendingDownloadVerification(shareID, email string) 
 	err := r.db.QueryRow(`
 		SELECT share_id, email, verification_code_hash, expires_at, resend_after, attempts, created_at
 		FROM pending_share_download_verifications
-		WHERE share_id = ? AND email = ? COLLATE NOCASE
+		WHERE share_id = ? AND email = ?
 	`, shareID, email).Scan(
 		&p.ShareID,
 		&p.Email,
@@ -276,7 +276,7 @@ func (r *ShareRepository) ConsumePendingDownloadVerification(
 	result, err := r.db.Exec(`
 		DELETE FROM pending_share_download_verifications
 		WHERE share_id = ?
-		AND email = ? COLLATE NOCASE
+		AND email = ?
 		AND verification_code_hash = ?
 		AND expires_at > ?
 		AND attempts < ?
@@ -299,7 +299,7 @@ func (r *ShareRepository) IncrementPendingDownloadVerificationAttempts(
 	result, err := r.db.Exec(`
 		UPDATE pending_share_download_verifications
 		SET attempts = attempts + 1
-		WHERE share_id = ? AND email = ? COLLATE NOCASE
+		WHERE share_id = ? AND email = ?
 		AND expires_at > ?
 		AND attempts < ?
 	`, shareID, email, now, maxAttempts)
@@ -316,7 +316,7 @@ func (r *ShareRepository) IncrementPendingDownloadVerificationAttempts(
 func (r *ShareRepository) DeletePendingDownloadVerification(shareID, email string) error {
 	_, err := r.db.Exec(`
 		DELETE FROM pending_share_download_verifications
-		WHERE share_id = ? AND email = ? COLLATE NOCASE
+		WHERE share_id = ? AND email = ?
 	`, shareID, email)
 	return err
 }
@@ -327,7 +327,7 @@ func (r *ShareRepository) DeletePendingDownloadVerificationIfExpired(
 ) error {
 	_, err := r.db.Exec(`
 		DELETE FROM pending_share_download_verifications
-		WHERE share_id = ? AND email = ? COLLATE NOCASE
+		WHERE share_id = ? AND email = ?
 		AND expires_at <= ?
 	`, shareID, email, now)
 	return err
@@ -338,7 +338,7 @@ func (r *ShareRepository) DeletePendingDownloadVerificationByCodeHash(
 ) error {
 	_, err := r.db.Exec(`
 		DELETE FROM pending_share_download_verifications
-		WHERE share_id = ? AND email = ? COLLATE NOCASE
+		WHERE share_id = ? AND email = ?
 		AND verification_code_hash = ?
 	`, shareID, email, verificationCodeHash)
 	return err
@@ -350,7 +350,7 @@ func (r *ShareRepository) DeletePendingDownloadVerificationIfAttemptsAtLeast(
 ) error {
 	_, err := r.db.Exec(`
 		DELETE FROM pending_share_download_verifications
-		WHERE share_id = ? AND email = ? COLLATE NOCASE
+		WHERE share_id = ? AND email = ?
 		AND attempts >= ?
 	`, shareID, email, minAttempts)
 	return err

@@ -153,6 +153,13 @@ func InitSchema(db *sql.DB) error {
 			FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE
 		);
 
+		CREATE TABLE IF NOT EXISTS rate_limit_counters (
+			scope_key TEXT PRIMARY KEY,
+			count INTEGER NOT NULL,
+			window_end DATETIME NOT NULL,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+
 		CREATE INDEX IF NOT EXISTS idx_files_owner_id ON files(owner_id);
 		CREATE INDEX IF NOT EXISTS idx_files_guest_session_id ON files(guest_session_id);
 		CREATE INDEX IF NOT EXISTS idx_shares_file_id ON shares(file_id);
@@ -161,6 +168,7 @@ func InitSchema(db *sql.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_guest_sessions_expires_at ON guest_sessions(expires_at);
 		CREATE INDEX IF NOT EXISTS idx_guest_sessions_ip_address ON guest_sessions(ip_address);
 		CREATE INDEX IF NOT EXISTS idx_pending_registrations_expires_at ON pending_registrations(expires_at);
+		CREATE INDEX IF NOT EXISTS idx_rate_limit_counters_window_end ON rate_limit_counters(window_end);
 
 		CREATE TABLE IF NOT EXISTS app_settings (
 			key TEXT PRIMARY KEY,

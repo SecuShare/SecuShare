@@ -2,6 +2,8 @@ package service
 
 import (
 	"errors"
+	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +19,23 @@ type AdminService struct {
 	cache        map[string]string
 	mu           sync.RWMutex
 }
+
+const (
+	defaultGuestStorageQuota  int64 = 10485760   // 10MB
+	defaultUserStorageQuota   int64 = 1073741824 // 1GB
+	defaultGuestMaxFileSize   int64 = 10485760   // 10MB
+	defaultUserMaxFileSize    int64 = 104857600  // 100MB
+	defaultGuestDurationHours       = 24
+
+	minStorageBytes     int64 = 1
+	maxStorageBytes     int64 = 1099511627776 // 1TB
+	minGuestDurationHrs       = 1
+	maxGuestDurationHrs       = 720 // 30 days
+)
+
+var allowedDomainPattern = regexp.MustCompile(
+	`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`,
+)
 
 func NewAdminService(settingsRepo *repository.SettingsRepository, userRepo *repository.UserRepository) *AdminService {
 	svc := &AdminService{
@@ -64,16 +83,40 @@ func (s *AdminService) GetCachedSettingInt(key string, fallback int64) int64 {
 
 func (s *AdminService) GetDefaultStorageQuota(isGuest bool) int64 {
 	if isGuest {
-		return s.GetCachedSettingInt("storage_quota_guest", 10485760)
+		quota := s.GetCachedSettingInt("storage_quota_guest", defaultGuestStorageQuota)
+		if quota <= 0 {
+			return defaultGuestStorageQuota
+		}
+		return quota
 	}
-	return s.GetCachedSettingInt("storage_quota_user", 1073741824)
+	quota := s.GetCachedSettingInt("storage_quota_user", defaultUserStorageQuota)
+	if quota <= 0 {
+		return defaultUserStorageQuota
+	}
+	return quota
 }
 
 func (s *AdminService) GetMaxFileSize(isGuest bool) int64 {
 	if isGuest {
-		return s.GetCachedSettingInt("max_file_size_guest", 10485760)
+		maxSize := s.GetCachedSettingInt("max_file_size_guest", defaultGuestMaxFileSize)
+		if maxSize <= 0 {
+			return defaultGuestMaxFileSize
+		}
+		return maxSize
 	}
-	return s.GetCachedSettingInt("max_file_size_user", 104857600)
+	maxSize := s.GetCachedSettingInt("max_file_size_user", defaultUserMaxFileSize)
+	if maxSize <= 0 {
+		return defaultUserMaxFileSize
+	}
+	return maxSize
+}
+
+func (s *AdminService) GetGuestSessionDurationHours() int {
+	hours := s.GetCachedSettingInt("guest_session_duration_hours", defaultGuestDurationHours)
+	if hours <= 0 {
+		return defaultGuestDurationHours
+	}
+	return int(hours)
 }
 
 func (s *AdminService) IsEmailDomainAllowed(email string) bool {
@@ -112,12 +155,82 @@ func (s *AdminService) UpdateSettings(updates map[string]string) error {
 	delete(updates, "setup_completed")
 
 	for k, v := range updates {
-		if err := s.settingsRepo.Set(k, v); err != nil {
+		normalizedValue, err := normalizeSetting(k, v)
+		if err != nil {
+			return err
+		}
+		if err := s.settingsRepo.Set(k, normalizedValue); err != nil {
 			return err
 		}
 	}
 	s.RefreshCache()
 	return nil
+}
+
+func normalizeSetting(key, value string) (string, error) {
+	trimmed := strings.TrimSpace(value)
+
+	switch key {
+	case "max_file_size_guest", "max_file_size_user", "storage_quota_guest", "storage_quota_user":
+		if _, err := parseIntInRange(trimmed, minStorageBytes, maxStorageBytes); err != nil {
+			return "", fmt.Errorf("invalid value for %s: %w", key, err)
+		}
+		return trimmed, nil
+	case "guest_session_duration_hours":
+		if _, err := parseIntInRange(trimmed, minGuestDurationHrs, maxGuestDurationHrs); err != nil {
+			return "", fmt.Errorf("invalid value for %s: %w", key, err)
+		}
+		return trimmed, nil
+	case "allowed_email_domains":
+		normalized, err := normalizeAllowedEmailDomains(trimmed)
+		if err != nil {
+			return "", fmt.Errorf("invalid value for %s: %w", key, err)
+		}
+		return normalized, nil
+	default:
+		return "", fmt.Errorf("unknown setting key %q", key)
+	}
+}
+
+func parseIntInRange(value string, min, max int64) (int64, error) {
+	if value == "" {
+		return 0, errors.New("value is required")
+	}
+
+	n, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0, errors.New("must be an integer")
+	}
+	if n < min || n > max {
+		return 0, fmt.Errorf("must be between %d and %d", min, max)
+	}
+	return n, nil
+}
+
+func normalizeAllowedEmailDomains(value string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+
+	seen := make(map[string]struct{})
+	normalized := make([]string, 0)
+
+	for _, raw := range strings.Split(value, ",") {
+		domain := strings.ToLower(strings.TrimSpace(raw))
+		if domain == "" {
+			continue
+		}
+		if !allowedDomainPattern.MatchString(domain) {
+			return "", fmt.Errorf("invalid domain %q", raw)
+		}
+		if _, exists := seen[domain]; exists {
+			continue
+		}
+		seen[domain] = struct{}{}
+		normalized = append(normalized, domain)
+	}
+
+	return strings.Join(normalized, ","), nil
 }
 
 func (s *AdminService) CompleteSetup() error {

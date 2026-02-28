@@ -123,8 +123,11 @@ class APIService {
       method: 'POST',
       body: JSON.stringify({ email, verification_code: verificationCode }),
     });
-    if (result.success && result.data?.csrf_token) {
-      this.setCSRFToken(result.data.csrf_token);
+    if (result.success && result.data) {
+      this.setToken(result.data.token || null);
+      if (result.data.csrf_token) {
+        this.setCSRFToken(result.data.csrf_token);
+      }
     }
     return result;
   }
@@ -148,8 +151,11 @@ class APIService {
         hasData: !!result.data,
         error: result.error,
       });
-      if (result.success && result.data?.csrf_token) {
-        this.setCSRFToken(result.data.csrf_token);
+      if (result.success && result.data) {
+        this.setToken(result.data.token || null);
+        if (result.data.csrf_token) {
+          this.setCSRFToken(result.data.csrf_token);
+        }
       }
       return result;
     } catch (error) {
@@ -177,8 +183,11 @@ class APIService {
       method: 'POST',
       body: JSON.stringify({ email, registration_record: registrationRecord }),
     });
-    if (result.success && result.data?.csrf_token) {
-      this.setCSRFToken(result.data.csrf_token);
+    if (result.success && result.data) {
+      this.setToken(result.data.token || null);
+      if (result.data.csrf_token) {
+        this.setCSRFToken(result.data.csrf_token);
+      }
     }
     return result;
   }
@@ -235,8 +244,11 @@ class APIService {
         hasData: !!result.data,
         error: result.error,
       });
-      if (result.success && result.data?.csrf_token) {
-        this.setCSRFToken(result.data.csrf_token);
+      if (result.success && result.data) {
+        this.setToken(result.data.token || null);
+        if (result.data.csrf_token) {
+          this.setCSRFToken(result.data.csrf_token);
+        }
       }
       return result;
     } catch (error) {
@@ -249,8 +261,11 @@ class APIService {
     const result = await this.request<AuthResponse>('/auth/guest', {
       method: 'POST',
     });
-    if (result.success && result.data?.csrf_token) {
-      this.setCSRFToken(result.data.csrf_token);
+    if (result.success && result.data) {
+      this.setToken(result.data.token || null);
+      if (result.data.csrf_token) {
+        this.setCSRFToken(result.data.csrf_token);
+      }
     }
     return result;
   }
@@ -395,8 +410,11 @@ class APIService {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
-    if (result.success && result.data?.csrf_token) {
-      this.setCSRFToken(result.data.csrf_token);
+    if (result.success && result.data) {
+      this.setToken(result.data.token || null);
+      if (result.data.csrf_token) {
+        this.setCSRFToken(result.data.csrf_token);
+      }
     }
     return result;
   }

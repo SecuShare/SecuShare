@@ -132,9 +132,10 @@ func main() {
 	// Routes
 	api := app.Group("/api/v1")
 
-	// Rate limiters: auth uses IP-only (runs before auth), file uses IP+UserID
-	authRateLimiter := handler.NewRateLimiter(10, 1*time.Minute)
-	fileRateLimiter := handler.NewRateLimiterWithKey(30, 1*time.Minute, handler.IPAndUserKey)
+	// Rate limiters: auth uses IP-only (runs before auth), file uses IP+UserID.
+	// Backed by DB to persist counters across restarts and shared replicas.
+	authRateLimiter := handler.NewPersistentRateLimiter(db, "auth", 10, 1*time.Minute)
+	fileRateLimiter := handler.NewPersistentRateLimiterWithKey(db, "file", 30, 1*time.Minute, handler.IPAndUserKey)
 
 	// Body limit middleware: 1MB for JSON API routes, 100MB for file uploads
 	jsonBodyLimit := handler.BodyLimitMiddleware(1 * 1024 * 1024) // 1MB

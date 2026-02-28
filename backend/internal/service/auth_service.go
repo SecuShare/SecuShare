@@ -584,6 +584,9 @@ func (s *AuthService) LoginInit(email string, ke1Bytes []byte) (string, []byte, 
 
 	user, lookupErr := s.userRepo.GetByEmail(email)
 	if lookupErr != nil {
+		if !errors.Is(lookupErr, sql.ErrNoRows) {
+			return "", nil, fmt.Errorf("failed to lookup user by email: %w", lookupErr)
+		}
 		s.trace("login_init_lookup", map[string]string{
 			"email":        email,
 			"user_found":   "false",
@@ -746,19 +749,42 @@ func (s *AuthService) LoginWithPassword(email, password string) (*models.User, s
 }
 
 func (s *AuthService) CreateGuestSession(ip string) (*models.GuestSession, string, error) {
-	// Every call creates a distinct session so each user has a private file list.
-	// Quota abuse is prevented at upload time by checking the IP-level aggregate
-	// across all active sessions from the same IP (see ReserveStorage).
+	ip = strings.TrimSpace(ip)
+
 	quota := int64(10485760) // 10MB default
 	if s.settings != nil {
 		quota = s.settings.GetDefaultStorageQuota(true)
 	}
+	expiresAt := time.Now().Add(s.guestSessionDuration())
+
+	// Reuse latest active empty session for this IP to reduce session table bloat
+	// while preserving isolation for sessions that already contain files.
+	if ip != "" {
+		reusable, err := s.guestRepo.GetReusableActiveByIP(ip)
+		switch {
+		case err == nil:
+			if err := s.guestRepo.RefreshSession(reusable.ID, quota, expiresAt); err != nil {
+				return nil, "", err
+			}
+			reusable.StorageQuota = quota
+			reusable.ExpiresAt = expiresAt
+
+			token, err := s.GenerateToken(reusable.ID, true)
+			if err != nil {
+				return nil, "", err
+			}
+			return reusable, token, nil
+		case !errors.Is(err, sql.ErrNoRows):
+			return nil, "", err
+		}
+	}
+
 	session := &models.GuestSession{
 		ID:           uuid.New().String(),
 		IPAddress:    &ip,
 		StorageQuota: quota,
 		StorageUsed:  0,
-		ExpiresAt:    time.Now().Add(time.Duration(s.config.Auth.GuestDuration) * time.Hour),
+		ExpiresAt:    expiresAt,
 		CreatedAt:    time.Now(),
 	}
 
@@ -782,7 +808,7 @@ func (s *AuthService) GenerateToken(userID string, isGuest bool) (string, error)
 	// Guest tokens expire to match guest session duration; registered user tokens expire in 24h
 	var expiry time.Duration
 	if isGuest {
-		expiry = time.Duration(s.config.Auth.GuestDuration) * time.Hour
+		expiry = s.guestSessionDuration()
 	} else {
 		expiry = 24 * time.Hour
 	}
@@ -841,6 +867,19 @@ func (s *AuthService) SetAdmin(id string, isAdmin bool) error {
 
 func (s *AuthService) SetEmailVerified(id string, verified bool) error {
 	return s.userRepo.SetEmailVerified(id, verified)
+}
+
+func (s *AuthService) guestSessionDuration() time.Duration {
+	hours := s.config.Auth.GuestDuration
+	if s.settings != nil {
+		if configured := s.settings.GetGuestSessionDurationHours(); configured > 0 {
+			hours = configured
+		}
+	}
+	if hours <= 0 {
+		hours = 24
+	}
+	return time.Duration(hours) * time.Hour
 }
 
 // Stop terminates background cleanup loops used by AuthService.
