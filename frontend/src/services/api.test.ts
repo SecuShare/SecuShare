@@ -9,7 +9,7 @@ function successResponse(data: unknown): Response {
     ok: true,
     status: 200,
     json: async () => ({ success: true, data }),
-  } as Response;
+  } as unknown as Response;
 }
 
 function errorResponse(status: number, error: string): Response {
@@ -17,7 +17,7 @@ function errorResponse(status: number, error: string): Response {
     ok: false,
     status,
     json: async () => ({ error }),
-  } as Response;
+  } as unknown as Response;
 }
 
 function nonJSONErrorResponse(status: number): Response {
@@ -27,7 +27,7 @@ function nonJSONErrorResponse(status: number): Response {
     json: async () => {
       throw new Error('invalid json');
     },
-  } as Response;
+  } as unknown as Response;
 }
 
 describe('APIService', () => {
@@ -299,7 +299,7 @@ describe('APIService', () => {
       ok: false,
       status: 403,
       json: async () => ({}),
-    } as Response);
+    } as unknown as Response);
 
     const result = await api.getCurrentUser();
     expect(result).toEqual({ success: false, error: 'Request failed (403)' });
@@ -460,7 +460,7 @@ describe('APIService', () => {
       ok: false,
       status: 413,
       json: async () => ({}),
-    } as Response);
+    } as unknown as Response);
 
     const result = await api.uploadFile(new Uint8Array([9, 9, 9]).buffer, {
       original_filename: 'big.bin',
@@ -482,7 +482,7 @@ describe('APIService', () => {
       json: async () => {
         throw new Error('invalid json');
       },
-    } as Response);
+    } as unknown as Response);
 
     const result = await api.uploadFile(new Uint8Array([8, 8, 8]).buffer, {
       original_filename: 'broken.bin',
