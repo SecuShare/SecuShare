@@ -29,7 +29,7 @@ export async function generateKey(): Promise<{ key: CryptoKey; keyBase64: string
 export async function encryptFile(file: File): Promise<EncryptedFile> {
   const { key, keyBase64 } = await generateKey();
   const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
-  const ivBase64 = arrayBufferToBase64(iv.buffer as ArrayBuffer);
+  const ivBase64 = arrayBufferToBase64(iv);
 
   const fileBuffer = await file.arrayBuffer();
 
@@ -133,8 +133,8 @@ export async function encryptKeyWithPassword(
 
   return {
     encryptedKey: arrayBufferToBase64(encryptedKey),
-    salt: arrayBufferToBase64(salt.buffer as ArrayBuffer),
-    iv: arrayBufferToBase64(iv.buffer as ArrayBuffer),
+    salt: arrayBufferToBase64(salt),
+    iv: arrayBufferToBase64(iv),
   };
 }
 

@@ -9,13 +9,14 @@ function readSessionFlag(): string | null {
 }
 
 export function isAuthDebugEnabled(): boolean {
-  if (import.meta.env.DEV) {
+  const sessionFlag = readSessionFlag();
+  if (sessionFlag === '0') {
+    return false;
+  }
+  if (sessionFlag === '1') {
     return true;
   }
-  if (import.meta.env.VITE_AUTH_DEBUG === '1') {
-    return true;
-  }
-  return readSessionFlag() === '1';
+  return import.meta.env.VITE_AUTH_DEBUG === '1' || import.meta.env.DEV;
 }
 
 export function newAuthTraceId(prefix = 'auth'): string {
