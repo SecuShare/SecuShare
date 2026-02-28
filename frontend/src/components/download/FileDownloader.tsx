@@ -4,6 +4,7 @@ import { Shield, Lock, Download, FileIcon, AlertCircle, Loader2, Mail } from 'lu
 import { api } from '../../services/api';
 import { decryptFile, decryptKeyWithPassword, verifyChecksum, formatFileSize } from '../../services/cryptoService';
 import { useToast } from '../common/Toast';
+import { FrontendAttribution } from '../common/FrontendAttribution';
 import type { ShareInfo } from '../../types';
 
 export function FileDownloader() {
@@ -177,156 +178,159 @@ export function FileDownloader() {
     }
   };
 
+  const renderPageShell = (content: React.ReactNode) => (
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="flex-1 flex items-center justify-center px-4 py-10">
+        {content}
+      </div>
+      <FrontendAttribution />
+    </div>
+  );
+
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex items-center gap-3 text-gray-600">
-          <Loader2 className="w-6 h-6 animate-spin" />
-          <span>Loading...</span>
-        </div>
+    return renderPageShell(
+      <div className="flex items-center gap-3 text-gray-600">
+        <Loader2 className="w-6 h-6 animate-spin" />
+        <span>Loading...</span>
       </div>
     );
   }
 
   if (error && !shareInfo) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="text-center">
-          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Share Not Found</h2>
-          <p className="text-gray-600">{error}</p>
-        </div>
+    return renderPageShell(
+      <div className="text-center">
+        <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">Share Not Found</h2>
+        <p className="text-gray-600">{error}</p>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Shield className="w-10 h-10 text-indigo-600" />
-            <h1 className="text-3xl font-bold text-gray-900">SecuShare</h1>
+  return renderPageShell(
+    <div className="w-full max-w-md">
+      <div className="text-center mb-8">
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <Shield className="w-10 h-10 text-indigo-600" />
+          <h1 className="text-3xl font-bold text-gray-900">SecuShare</h1>
+        </div>
+        <p className="text-gray-600">Secure file download</p>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-14 h-14 bg-indigo-100 rounded-xl flex items-center justify-center">
+            <FileIcon className="w-7 h-7 text-indigo-600" />
           </div>
-          <p className="text-gray-600">Secure file download</p>
+          <div>
+            <h3 className="font-semibold text-gray-900">{shareInfo?.file_name}</h3>
+            <p className="text-sm text-gray-500">{formatFileSize(shareInfo?.file_size_bytes || 0)}</p>
+          </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-14 h-14 bg-indigo-100 rounded-xl flex items-center justify-center">
-              <FileIcon className="w-7 h-7 text-indigo-600" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900">{shareInfo?.file_name}</h3>
-              <p className="text-sm text-gray-500">{formatFileSize(shareInfo?.file_size_bytes || 0)}</p>
-            </div>
-          </div>
+        <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 px-3 py-2 rounded-lg mb-6">
+          <Lock className="w-3 h-3" />
+          End-to-end encrypted
+        </div>
 
-          <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 px-3 py-2 rounded-lg mb-6">
-            <Lock className="w-3 h-3" />
-            End-to-end encrypted
-          </div>
-
-          {shareInfo?.expires_at && !isNaN(new Date(shareInfo.expires_at).getTime()) && (
-            <p className="text-sm text-gray-500 mb-4">
-              Expires: {new Date(shareInfo.expires_at).toISOString().replace('T', ' ').slice(0, 19)} UTC
-            </p>
-          )}
-
-          {shareInfo?.max_downloads && (
-            <p className="text-sm text-gray-500 mb-4">
-              Downloads: {shareInfo.download_count} / {shareInfo.max_downloads}
-            </p>
-          )}
-
-          {shareInfo?.has_password && (
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password required
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter password"
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                />
-              </div>
-            </div>
-          )}
-
-          {shareInfo?.requires_email_verification && (
-            <div className="mb-6 space-y-3">
-              <label className="block text-sm font-medium text-gray-700">
-                Email verification required
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email address"
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                />
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value)}
-                  placeholder="Enter 6-digit code"
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={handleRequestCode}
-                  disabled={isRequestingCode || !email.trim()}
-                  className="px-3 py-2 bg-white text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isRequestingCode ? 'Sending...' : 'Send code'}
-                </button>
-              </div>
-              <p className="text-xs text-gray-500">
-                Enter an allowlisted email to receive a one-time verification code.
-              </p>
-            </div>
-          )}
-
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg">
-              {error}
-            </div>
-          )}
-
-          <button
-            onClick={handleDownload}
-            disabled={
-              isDownloading ||
-              (shareInfo?.has_password && !password) ||
-              (shareInfo?.requires_email_verification && (!email.trim() || !verificationCode.trim()))
-            }
-            className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white py-3 px-4 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isDownloading ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Downloading...
-              </>
-            ) : (
-              <>
-                <Download className="w-5 h-5" />
-                Download File
-              </>
-            )}
-          </button>
-
-          <p className="mt-4 text-xs text-center text-gray-500">
-            File is decrypted locally in your browser. The server never sees your data.
+        {shareInfo?.expires_at && !isNaN(new Date(shareInfo.expires_at).getTime()) && (
+          <p className="text-sm text-gray-500 mb-4">
+            Expires: {new Date(shareInfo.expires_at).toISOString().replace('T', ' ').slice(0, 19)} UTC
           </p>
-        </div>
+        )}
+
+        {shareInfo?.max_downloads && (
+          <p className="text-sm text-gray-500 mb-4">
+            Downloads: {shareInfo.download_count} / {shareInfo.max_downloads}
+          </p>
+        )}
+
+        {shareInfo?.has_password && (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Password required
+            </label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter password"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+              />
+            </div>
+          </div>
+        )}
+
+        {shareInfo?.requires_email_verification && (
+          <div className="mb-6 space-y-3">
+            <label className="block text-sm font-medium text-gray-700">
+              Email verification required
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email address"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+              />
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
+                placeholder="Enter 6-digit code"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleRequestCode}
+                disabled={isRequestingCode || !email.trim()}
+                className="px-3 py-2 bg-white text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isRequestingCode ? 'Sending...' : 'Send code'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">
+              Enter an allowlisted email to receive a one-time verification code.
+            </p>
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg">
+            {error}
+          </div>
+        )}
+
+        <button
+          onClick={handleDownload}
+          disabled={
+            isDownloading ||
+            (shareInfo?.has_password && !password) ||
+            (shareInfo?.requires_email_verification && (!email.trim() || !verificationCode.trim()))
+          }
+          className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white py-3 px-4 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isDownloading ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Downloading...
+            </>
+          ) : (
+            <>
+              <Download className="w-5 h-5" />
+              Download File
+            </>
+          )}
+        </button>
+
+        <p className="mt-4 text-xs text-center text-gray-500">
+          File is decrypted locally in your browser. The server never sees your data.
+        </p>
       </div>
     </div>
   );

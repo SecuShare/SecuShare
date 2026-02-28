@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store';
 import { Shield, LogOut, FileText, Upload, User, Settings } from 'lucide-react';
+import { FrontendAttribution } from '../common/FrontendAttribution';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, logout } = useAuthStore();
@@ -15,7 +16,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const isLoginPage = location.pathname === '/login' || location.pathname === '/register';
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 text-xl font-bold text-gray-900">
@@ -98,7 +99,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
+      <main className="max-w-6xl mx-auto w-full flex-1 px-4 py-8">{children}</main>
+      <FrontendAttribution />
     </div>
   );
 }

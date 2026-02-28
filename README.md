@@ -18,6 +18,7 @@ A secure, end-to-end encrypted file sharing web application. Files are encrypted
 - [Backup and Recovery](#backup-and-recovery)
 - [Security Considerations](#security-considerations)
 - [Security Policy](SECURITY.md)
+- [Credits](#credits)
 - [License](#license)
 
 ---
@@ -1296,6 +1297,13 @@ location /api/v1/files/ {
     # ... rest of config
 }
 ```
+
+---
+
+## Credits
+
+- Developed by [AM Crypto](https://amcrypto.jp)
+- Author: Mounir IDRASSI
 
 ---
 
