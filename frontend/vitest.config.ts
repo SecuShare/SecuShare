@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Mounir IDRASSI
+// Affiliation: AM Crypto (https://amcrypto.jp)
+// License: MIT
+
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 

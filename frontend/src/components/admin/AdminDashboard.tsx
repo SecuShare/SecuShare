@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Mounir IDRASSI
+// Affiliation: AM Crypto (https://amcrypto.jp)
+// License: MIT
+
 import { useState } from 'react';
 import { BarChart3, Settings, Users, Wrench } from 'lucide-react';
 import { AdminStats } from './AdminStats';

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Mounir IDRASSI
+// Affiliation: AM Crypto (https://amcrypto.jp)
+// License: MIT
+
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Lock, Download, FileIcon, AlertCircle, Loader2, Mail } from 'lucide-react';

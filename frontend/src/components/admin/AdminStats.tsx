@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Mounir IDRASSI
+// Affiliation: AM Crypto (https://amcrypto.jp)
+// License: MIT
+
 import { useEffect } from 'react';
 import { Users, FileText, HardDrive, Share2, Clock } from 'lucide-react';
 import { useAdminStore } from '../../store/adminStore';

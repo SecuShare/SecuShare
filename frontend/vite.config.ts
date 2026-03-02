@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Mounir IDRASSI
+// Affiliation: AM Crypto (https://amcrypto.jp)
+// License: MIT
+
 import { defineConfig, type Plugin } from 'vite'
 import { createHash } from 'crypto'
 import { readFileSync } from 'fs'

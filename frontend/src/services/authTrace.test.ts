@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Mounir IDRASSI
+// Affiliation: AM Crypto (https://amcrypto.jp)
+// License: MIT
+
 import { describe, expect, it, vi } from 'vitest';
 import { authTrace, authTraceError, emailHint, isAuthDebugEnabled, newAuthTraceId } from './authTrace';
 

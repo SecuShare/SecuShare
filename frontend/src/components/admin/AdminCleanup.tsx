@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Mounir IDRASSI
+// Affiliation: AM Crypto (https://amcrypto.jp)
+// License: MIT
+
 import { useState } from 'react';
 import { Trash2, CheckCircle } from 'lucide-react';
 import { useAdminStore } from '../../store/adminStore';

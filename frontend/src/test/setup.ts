@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Mounir IDRASSI
+// Affiliation: AM Crypto (https://amcrypto.jp)
+// License: MIT
+
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, vi } from 'vitest';
 

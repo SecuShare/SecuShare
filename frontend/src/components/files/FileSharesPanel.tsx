@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Mounir IDRASSI
+// Affiliation: AM Crypto (https://amcrypto.jp)
+// License: MIT
+
 import { useState, useEffect } from 'react';
 import { encryptKeyWithPassword } from '../../services/cryptoService';
 import { useAuthStore, useFileStore } from '../../store';

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Mounir IDRASSI
+// Affiliation: AM Crypto (https://amcrypto.jp)
+// License: MIT
+
 // Client-side encryption service using Web Crypto API
 
 const ALGORITHM = 'AES-GCM';

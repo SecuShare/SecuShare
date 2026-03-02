@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Mounir IDRASSI
+// Affiliation: AM Crypto (https://amcrypto.jp)
+// License: MIT
+
 import { create } from 'zustand';
 import type { AppSetting, UsageStats, AdminUserInfo } from '../types';
 import { api } from '../services/api';

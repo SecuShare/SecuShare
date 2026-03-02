@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Mounir IDRASSI
+// Affiliation: AM Crypto (https://amcrypto.jp)
+// License: MIT
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Logo } from '../common/Logo';

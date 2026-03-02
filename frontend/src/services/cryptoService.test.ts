@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Mounir IDRASSI
+// Affiliation: AM Crypto (https://amcrypto.jp)
+// License: MIT
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   calculateSHA256,

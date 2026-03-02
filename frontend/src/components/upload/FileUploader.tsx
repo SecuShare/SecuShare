@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Mounir IDRASSI
+// Affiliation: AM Crypto (https://amcrypto.jp)
+// License: MIT
+
 import { useEffect, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useAuthStore, useFileStore } from '../../store';

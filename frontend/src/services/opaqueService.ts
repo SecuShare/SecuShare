@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Mounir IDRASSI
+// Affiliation: AM Crypto (https://amcrypto.jp)
+// License: MIT
+
 import type { AuthResponse, VerificationResponse } from '../types';
 import { authTrace, authTraceError, emailHint, newAuthTraceId } from './authTrace';
 import { api } from './api';
