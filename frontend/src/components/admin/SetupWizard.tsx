@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield } from 'lucide-react';
+import { Logo } from '../common/Logo';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../store';
 import { FrontendAttribution } from '../common/FrontendAttribution';
@@ -52,7 +52,7 @@ export function SetupWizard() {
         <div className="max-w-md w-full">
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-2 mb-4">
-              <Shield className="w-10 h-10 text-indigo-600" />
+              <Logo />
               <h1 className="text-3xl font-bold text-gray-900">SecuShare</h1>
             </div>
             <h2 className="text-xl text-gray-600">Initial Setup</h2>

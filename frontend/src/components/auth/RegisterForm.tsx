@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store';
 import { useToast } from '../common/Toast';
 import { FrontendAttribution } from '../common/FrontendAttribution';
-import { Shield } from 'lucide-react';
+import { Logo } from '../common/Logo';
 
 export function RegisterForm() {
   const [step, setStep] = useState<'credentials' | 'verification'>('credentials');
@@ -97,7 +97,7 @@ export function RegisterForm() {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-2 mb-4">
-              <Shield className="w-10 h-10 text-indigo-600" />
+              <Logo />
               <h1 className="text-3xl font-bold text-gray-900">SecuShare</h1>
             </div>
             <p className="text-gray-600">

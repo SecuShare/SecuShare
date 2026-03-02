@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="shieldGrad" x1="80" y1="36" x2="432" y2="468" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="6" stdDeviation="14" flood-color="#1E1B4B" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+
+  <!-- Shield -->
+  <path d="M256 36C196 36 116 60 80 80V236C80 352 256 468 256 468S432 352 432 236V80C396 60 316 36 256 36Z"
+        fill="url(#shieldGrad)" filter="url(#shadow)"/>
+
+  <!-- Subtle top highlight for depth -->
+  <path d="M256 44C200 44 124 64 92 82V130C160 114 352 114 420 130V82C388 64 312 44 256 44Z"
+        fill="#fff" opacity="0.06"/>
+
+  <!-- Share connecting lines (lock → nodes) -->
+  <path d="M256 250L180 340M256 250L332 340"
+        stroke="#fff" stroke-width="10" stroke-linecap="round" opacity="0.9"/>
+
+  <!-- Lock shackle -->
+  <path d="M236 202V180C236 162 244 152 256 152S276 162 276 180V202"
+        stroke="#fff" stroke-width="10" stroke-linecap="round" fill="none"/>
+
+  <!-- Lock body -->
+  <rect x="226" y="200" width="60" height="52" rx="8" fill="#fff"/>
+
+  <!-- Keyhole -->
+  <circle cx="256" cy="218" r="6" fill="#4F46E5"/>
+  <path d="M253 221L254.5 234H257.5L259 221Z" fill="#4F46E5"/>
+
+  <!-- Share endpoint nodes -->
+  <circle cx="180" cy="340" r="22" fill="#fff"/>
+  <circle cx="332" cy="340" r="22" fill="#fff"/>
+</svg>

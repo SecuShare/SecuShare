@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 80">
+  <defs>
+    <linearGradient id="sg" x1="8" y1="4" x2="72" y2="76" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="tg" x1="90" y1="20" x2="350" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Shield icon (scaled to 64x64, offset at 8,6) -->
+  <g transform="translate(8,6) scale(0.125)">
+    <!-- Shield -->
+    <path d="M256 36C196 36 116 60 80 80V236C80 352 256 468 256 468S432 352 432 236V80C396 60 316 36 256 36Z"
+          fill="url(#sg)"/>
+    <!-- Share lines -->
+    <path d="M256 250L180 340M256 250L332 340"
+          stroke="#fff" stroke-width="10" stroke-linecap="round" opacity="0.9"/>
+    <!-- Lock shackle -->
+    <path d="M236 202V180C236 162 244 152 256 152S276 162 276 180V202"
+          stroke="#fff" stroke-width="10" stroke-linecap="round" fill="none"/>
+    <!-- Lock body -->
+    <rect x="226" y="200" width="60" height="52" rx="8" fill="#fff"/>
+    <!-- Keyhole -->
+    <circle cx="256" cy="218" r="6" fill="#4F46E5"/>
+    <path d="M253 221L254.5 234H257.5L259 221Z" fill="#4F46E5"/>
+    <!-- Share nodes -->
+    <circle cx="180" cy="340" r="22" fill="#fff"/>
+    <circle cx="332" cy="340" r="22" fill="#fff"/>
+  </g>
+
+  <!-- "SecuShare" text -->
+  <text x="90" y="53" font-family="'Inter','Segoe UI','Helvetica Neue',Arial,sans-serif"
+        font-size="36" font-weight="700" letter-spacing="-0.5" fill="url(#tg)">
+    Secu<tspan font-weight="400">Share</tspan>
+  </text>
+</svg>

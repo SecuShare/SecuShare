@@ -1,5 +1,7 @@
 # SecuShare
 
+![SecuShare logo](frontend/public/logo.svg)
+
 A secure, end-to-end encrypted file sharing web application. Files are encrypted client-side before upload, and decryption keys are embedded in share URLs (after `#` fragment) so the server never sees them.
 
 ## Table of Contents

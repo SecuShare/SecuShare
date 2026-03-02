@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store';
-import { Shield, LogOut, FileText, Upload, User, Settings } from 'lucide-react';
+import { LogOut, FileText, Upload, User, Settings } from 'lucide-react';
+import { Logo } from '../common/Logo';
 import { FrontendAttribution } from '../common/FrontendAttribution';
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -18,7 +19,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 text-xl font-bold text-gray-900">
-            <Shield className="w-6 h-6 text-indigo-600" />
+            <Logo size="sm" />
             SecuShare
           </Link>
 

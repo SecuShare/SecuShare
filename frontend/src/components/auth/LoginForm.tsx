@@ -6,7 +6,7 @@ import { api } from '../../services/api';
 import { formatFileSize } from '../../services/cryptoService';
 import { useToast } from '../common/Toast';
 import { FrontendAttribution } from '../common/FrontendAttribution';
-import { Shield } from 'lucide-react';
+import { Logo } from '../common/Logo';
 
 export function LoginForm() {
   const defaultGuestMaxFileSize = 10 * 1024 * 1024;
@@ -82,7 +82,7 @@ export function LoginForm() {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-2 mb-4">
-              <Shield className="w-10 h-10 text-indigo-600" />
+              <Logo />
               <h1 className="text-3xl font-bold text-gray-900">SecuShare</h1>
             </div>
             <p className="text-gray-600">Secure, end-to-end encrypted file sharing</p>

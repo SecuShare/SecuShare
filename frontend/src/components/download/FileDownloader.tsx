@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Shield, Lock, Download, FileIcon, AlertCircle, Loader2, Mail } from 'lucide-react';
+import { Lock, Download, FileIcon, AlertCircle, Loader2, Mail } from 'lucide-react';
+import { Logo } from '../common/Logo';
 import { api } from '../../services/api';
 import { decryptFile, decryptKeyWithPassword, verifyChecksum, formatFileSize } from '../../services/cryptoService';
 import { useToast } from '../common/Toast';
@@ -210,7 +211,7 @@ export function FileDownloader() {
     <div className="w-full max-w-md">
       <div className="text-center mb-8">
         <div className="flex items-center justify-center gap-2 mb-4">
-          <Shield className="w-10 h-10 text-indigo-600" />
+          <Logo />
           <h1 className="text-3xl font-bold text-gray-900">SecuShare</h1>
         </div>
         <p className="text-gray-600">Secure file download</p>
