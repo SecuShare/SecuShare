@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store';
 import { Shield, LogOut, FileText, Upload, User, Settings } from 'lucide-react';
 import { FrontendAttribution } from '../common/FrontendAttribution';
@@ -6,11 +6,9 @@ import { FrontendAttribution } from '../common/FrontendAttribution';
 export function Layout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, logout } = useAuthStore();
   const location = useLocation();
-  const navigate = useNavigate();
 
   const handleLogout = async () => {
     await logout();
-    navigate('/');
   };
 
   const isLoginPage = location.pathname === '/login' || location.pathname === '/register';
@@ -72,6 +70,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   </div>
                   <button
                     onClick={handleLogout}
+                    aria-label="Sign out"
                     className="flex items-center gap-1 text-gray-600 hover:text-red-600 transition"
                   >
                     <LogOut className="w-4 h-4" />

@@ -87,10 +87,19 @@ export const useAuthStore = create<AuthState>((set) => ({
     } finally {
       api.setToken(null);
       api.setCSRFToken(null);
-      sessionStorage.removeItem(SHARE_URLS_STORAGE_KEY);
-      sessionStorage.removeItem(FILE_KEYS_STORAGE_KEY);
-      useFileStore.getState().reset();
-      set({ user: null, isAuthenticated: false });
+      try {
+        useFileStore.getState().reset();
+      } catch {
+        // Fallback when browser storage is unavailable.
+        useFileStore.setState({
+          files: [],
+          storageInfo: null,
+          isLoading: false,
+          fileKeys: {},
+          shareUrls: {},
+        });
+      }
+      set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },
 
