@@ -15,10 +15,22 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
+      all: true,
+      include: [
+        'src/services/**/*.ts',
+        'src/utils/email.ts',
+      ],
       exclude: [
         'node_modules/',
         'src/test/setup.ts',
+        'src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       ],
+      thresholds: {
+        statements: 100,
+        branches: 100,
+        functions: 100,
+        lines: 100,
+      },
     },
   },
 });

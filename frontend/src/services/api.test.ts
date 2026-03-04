@@ -433,6 +433,66 @@ describe('APIService', () => {
     expect(api.getCSRFToken()).toBeNull();
   });
 
+  it('returns success responses without mutating auth state when data is missing', async () => {
+    mockFetch
+      .mockResolvedValueOnce(successResponse(undefined)) // verifyRegistration
+      .mockResolvedValueOnce(successResponse(undefined)) // login
+      .mockResolvedValueOnce(successResponse(undefined)) // registerFinish
+      .mockResolvedValueOnce(successResponse(undefined)) // loginFinish
+      .mockResolvedValueOnce(successResponse(undefined)) // createGuestSession
+      .mockResolvedValueOnce(successResponse(undefined)); // completeSetup
+
+    const { api } = await import('./api');
+    api.setToken('existing-token');
+    api.setCSRFToken('existing-csrf');
+
+    await expect(api.verifyRegistration('missing@example.com', '123456')).resolves.toEqual({ success: true, data: undefined });
+    await expect(api.login('missing@example.com', 'password123')).resolves.toEqual({ success: true, data: undefined });
+    await expect(api.registerFinish('missing@example.com', 'record')).resolves.toEqual({ success: true, data: undefined });
+    await expect(api.loginFinish('login-id', 'finish')).resolves.toEqual({ success: true, data: undefined });
+    await expect(api.createGuestSession()).resolves.toEqual({ success: true, data: undefined });
+    await expect(api.completeSetup('admin@example.com', 'password123')).resolves.toEqual({ success: true, data: undefined });
+
+    expect(api.getToken()).toBe('existing-token');
+    expect(api.getCSRFToken()).toBe('existing-csrf');
+  });
+
+  it('falls back to null token when auth responses contain data without token', async () => {
+    const authDataWithoutToken = {
+      user: {
+        id: 'u-no-token',
+        email: 'notoken@example.com',
+        storage_quota_bytes: 1024,
+        storage_used_bytes: 0,
+        is_guest: false,
+      },
+    };
+
+    mockFetch
+      .mockResolvedValueOnce(successResponse(authDataWithoutToken)) // verifyRegistration
+      .mockResolvedValueOnce(successResponse(authDataWithoutToken)) // login
+      .mockResolvedValueOnce(successResponse(authDataWithoutToken)) // registerFinish
+      .mockResolvedValueOnce(successResponse(authDataWithoutToken)) // loginFinish
+      .mockResolvedValueOnce(successResponse(authDataWithoutToken)) // createGuestSession
+      .mockResolvedValueOnce(successResponse(authDataWithoutToken)); // completeSetup
+
+    const { api } = await import('./api');
+    api.setToken('old-token');
+
+    await api.verifyRegistration('notoken@example.com', '123456');
+    expect(api.getToken()).toBeNull();
+    await api.login('notoken@example.com', 'password123');
+    expect(api.getToken()).toBeNull();
+    await api.registerFinish('notoken@example.com', 'reg-record');
+    expect(api.getToken()).toBeNull();
+    await api.loginFinish('login-id', 'finish-record');
+    expect(api.getToken()).toBeNull();
+    await api.createGuestSession();
+    expect(api.getToken()).toBeNull();
+    await api.completeSetup('admin@example.com', 'password123');
+    expect(api.getToken()).toBeNull();
+  });
+
   it('uploads encrypted files with auth/csrf headers and handles upload errors', async () => {
     mockFetch.mockResolvedValueOnce(errorResponse(400, 'invalid metadata'));
     const { api } = await import('./api');
