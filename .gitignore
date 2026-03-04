@@ -5,6 +5,9 @@ vendor/
 # Build outputs
 backend/secushare-server
 backend/secushare-server.exe
+backend/server
+backend/coverage
+backend/coverage.out
 frontend/dist/
 
 # Storage and database
@@ -41,4 +44,10 @@ npm-debug.log*
 *.tmp
 *.temp
 frontend/.tmp_*
+frontend/coverage/
 backend/tmp_*
+backend/.tmp-gcl/
+backend/.golangci.v1tmp.yml
+backend/.golangci.v1tmp.bck.yml
+backend/.golangci.migrated.yml
+sample.bat
